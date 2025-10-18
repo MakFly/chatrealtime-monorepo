@@ -1,0 +1,90 @@
+services:
+    ###> webapp ###
+    webapp:
+        container_name: chatrealtime
+        build:
+            context: .
+            dockerfile: Dockerfile.dev
+        depends_on:
+            postgres:
+                condition: service_healthy
+        ports:
+            - "80:80"
+            # - "443:443" # TODO: Uncomment when we have a valid SSL certificate
+            # - "443:443/udp" # TODO: Uncomment when we have a valid SSL certificate
+        volumes:
+            - ./:/app
+            - caddy_data:/data
+            - caddy_config:/config
+    ###< webapp ###
+
+    ###> postgres ###
+    postgres:
+        image: postgres:15-alpine
+        container_name: chatrealtime-postgres
+        environment:
+            POSTGRES_USER: test
+            POSTGRES_PASSWORD: test
+            POSTGRES_DB: chatrealtime
+            POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+        ports:
+            - "5432:5432"
+        volumes:
+            - chatrealtime:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U test -d chatrealtime"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+    ###< postgres ###
+
+    ###> adminer ###
+    adminer:
+        image: adminer
+        environment:
+            - ADMINER_PLUGINS=${ADM_PLUGINS}
+            - ADMINER_DESIGN=${ADM_DESIGN}
+            - ADMINER_DEFAULT_SERVER=${ADM_DEFAULT_SERVER}
+        ports:
+            - "9080:8080"
+        volumes:
+            - adminer-data:/var/lib/adminer
+    ###< adminer ###
+
+    ###> symfony/mailer ###
+    maildev:
+        hostname: maildev
+        image: maildev/maildev
+        command: bin/maildev --web 80 --smtp 25 --hide-extensions STARTTLS
+        ports:
+            - "1080:80"
+            - "25:25"
+    ###< symfony/mailer ###
+
+    ###> dozzle ###
+    dozzle:
+        container_name: chatrealtime-dozzle
+        image: amir20/dozzle:latest
+        environment:
+            DOZZLE_FILTER: "status=running"
+            DOZZLE_TAILSIZE: "100"
+        ports:
+            - "8888:8080"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+    ###< dozzle ###
+
+volumes:
+    adminer-data:
+        driver: local
+    caddy_data:
+        driver: local
+    caddy_config:
+        driver: local
+    chatrealtime:
+        driver: local
+
+networks:
+    chatrealtime:
+        driver: bridge
+        name: chatrealtime

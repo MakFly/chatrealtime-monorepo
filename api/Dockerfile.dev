@@ -1,0 +1,41 @@
+FROM dunglas/frankenphp
+
+# Met moi un émoji comme quoi c'est le docker local
+LABEL maintainer="🐘🐳🐧🚀 Inopan"
+
+# ENV SERVER_NAME=symfony.chat-realtime.inopan.com
+ENV SERVER_NAME=:80
+
+# Configure PHP for development
+RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+
+# Configure PHP for better development experience
+RUN echo "memory_limit = 512M" >> "$PHP_INI_DIR/php.ini" && \
+    echo "max_execution_time = 300" >> "$PHP_INI_DIR/php.ini" && \
+    echo "max_input_vars = 10000" >> "$PHP_INI_DIR/php.ini" && \
+    echo "upload_max_filesize = 50M" >> "$PHP_INI_DIR/php.ini" && \
+    echo "post_max_size = 50M" >> "$PHP_INI_DIR/php.ini" && \
+    echo "display_errors = On" >> "$PHP_INI_DIR/php.ini" && \
+    echo "display_startup_errors = On" >> "$PHP_INI_DIR/php.ini" && \
+    echo "error_reporting = E_ALL" >> "$PHP_INI_DIR/php.ini" && \
+    echo "log_errors = On" >> "$PHP_INI_DIR/php.ini" && \
+    echo "error_log = /dev/stderr" >> "$PHP_INI_DIR/php.ini"
+
+# add additional extensions here:
+RUN install-php-extensions \
+    @composer \
+    pdo_pgsql \
+    gd \
+    intl \
+    zip \
+    bcmath \
+    opcache \
+    redis \
+    pcntl \
+    sockets
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
+
+# Copie du reste des fichiers
+COPY . /app
