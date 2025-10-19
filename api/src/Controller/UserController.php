@@ -14,7 +14,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
-#[Route('/api/v1')]
+#[Route('/api/v1/user')]
 class UserController extends AbstractController
 {
     #[Route('/me', name: 'app_user_me', methods: ['GET'])]
@@ -33,9 +33,8 @@ class UserController extends AbstractController
             'name' => $user->getName(),
             'picture' => $user->getPicture(),
             'roles' => $user->getRoles(),
-            'google_id' => $user->getGoogleId(),
             'created_at' => $user->getCreatedAt()?->format('c'),
-            'updated_at' => $user->getUpdatedAt()?->format('c'),
+            'has_google_account' => $user->getGoogleId() !== null,
         ]);
     }
 
@@ -72,9 +71,8 @@ class UserController extends AbstractController
             'name' => $user->getName(),
             'picture' => $user->getPicture(),
             'roles' => $user->getRoles(),
-            'google_id' => $user->getGoogleId(),
             'created_at' => $user->getCreatedAt()?->format('c'),
-            'updated_at' => $user->getUpdatedAt()?->format('c'),
+            'has_google_account' => $user->getGoogleId() !== null,
         ]);
     }
 

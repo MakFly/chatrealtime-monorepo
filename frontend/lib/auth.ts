@@ -3,7 +3,6 @@ import type { Session, User } from '@/types/auth'
 
 const ACCESS_TOKEN_COOKIE = 'access_token'
 const REFRESH_TOKEN_COOKIE = 'refresh_token'
-const USER_COOKIE = 'user'
 
 /**
  * Cookie configuration for secure session management
@@ -24,46 +23,60 @@ export async function getSession(): Promise<Session | null> {
 
   const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value
   const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
-  const userCookie = cookieStore.get(USER_COOKIE)?.value
 
-  if (!accessToken || !refreshToken || !userCookie) {
+  if (!accessToken || !refreshToken) {
     return null
   }
 
-  try {
-    const user: User = JSON.parse(userCookie)
+  // Calculate expiration timestamp (tokens typically expire in 1 hour = 3600 seconds)
+  const expiresAt = Date.now() + 3600 * 1000
 
-    // Calculate expiration timestamp (tokens typically expire in 1 hour = 3600 seconds)
-    const expiresAt = Date.now() + 3600 * 1000
-
-    return {
-      user,
-      accessToken,
-      refreshToken,
-      expiresAt,
-    }
-  } catch (error) {
-    console.error('Failed to parse user cookie:', error)
-    return null
+  return {
+    accessToken,
+    refreshToken,
+    expiresAt,
   }
 }
 
 /**
  * Get just the user from the session
- * Convenient helper for when you only need user data
+ * Fetches user data from the API using the stored access token
  */
 export async function getCurrentUser(): Promise<User | null> {
   const session = await getSession()
-  return session?.user || null
+
+  if (!session) {
+    return null
+  }
+
+  try {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost'
+    const response = await fetch(`${API_URL}/api/v1/user/me`, {
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Failed to fetch current user:', error)
+    return null
+  }
 }
 
 /**
  * Create or update a session by setting secure HTTP-only cookies
+ * Only stores tokens - user data is fetched from API when needed
  */
 export async function setSession(
   accessToken: string,
   refreshToken: string,
-  user: User,
   expiresIn: number = 3600 // Default: 1 hour in seconds
 ): Promise<void> {
   const cookieStore = await cookies()
@@ -84,13 +97,6 @@ export async function setSession(
     maxAge: 30 * 24 * 60 * 60, // 30 days
     expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   })
-
-  // Set user data cookie (same expiration as access token)
-  cookieStore.set(USER_COOKIE, JSON.stringify(user), {
-    ...cookieOptions,
-    maxAge: expiresIn,
-    expires: expiresAt,
-  })
 }
 
 /**
@@ -101,7 +107,6 @@ export async function clearSession(): Promise<void> {
 
   cookieStore.delete(ACCESS_TOKEN_COOKIE)
   cookieStore.delete(REFRESH_TOKEN_COOKIE)
-  cookieStore.delete(USER_COOKIE)
 }
 
 /**

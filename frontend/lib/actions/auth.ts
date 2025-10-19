@@ -5,8 +5,14 @@ import { setSession, clearSession } from '@/lib/auth'
 import { loginSchema, registerSchema } from '@/lib/validations/auth'
 import type { AuthResponse } from '@/types/auth'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost'
 const API_PREFIX = '/api/v1'
+
+// For development: Allow self-signed certificates (server-side only)
+// This is safe because it only affects server-to-server communication
+if (process.env.NODE_ENV === 'development') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+}
 
 /**
  * Server action for user login
@@ -65,7 +71,6 @@ export async function loginAction(formData: FormData) {
     await setSession(
       authData.access_token,
       authData.refresh_token,
-      authData.user,
       authData.expires_in
     )
   } catch (error) {
@@ -138,7 +143,6 @@ export async function registerAction(formData: FormData) {
     await setSession(
       authData.access_token,
       authData.refresh_token,
-      authData.user,
       authData.expires_in
     )
   } catch (error) {
@@ -187,27 +191,47 @@ export async function handleGoogleCallbackAction(
   expiresIn: number
 ) {
   try {
+    const url = `${API_URL}${API_PREFIX}/user/me`
+
+    console.log('[handleGoogleCallback] Fetching user profile from:', url)
+    console.log('[handleGoogleCallback] Access token length:', accessToken?.length)
+
     // Fetch user profile using the access token
-    const response = await fetch(`${API_URL}${API_PREFIX}/me`, {
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
       },
+      cache: 'no-store',
     })
 
+    console.log('[handleGoogleCallback] Response status:', response.status)
+    console.log('[handleGoogleCallback] Response ok:', response.ok)
+
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[handleGoogleCallback] Error response:', errorText)
+
       return {
-        error: 'Failed to fetch user profile',
+        error: `Failed to fetch user profile: ${response.status} ${response.statusText}`,
       }
     }
 
     const user = await response.json()
+    console.log('[handleGoogleCallback] User data received:', {
+      id: user.id,
+      email: user.email,
+      hasRoles: !!user.roles
+    })
 
     // Store session
-    await setSession(accessToken, refreshToken, user, expiresIn)
+    await setSession(accessToken, refreshToken, expiresIn)
+
+    console.log('[handleGoogleCallback] Session stored successfully')
   } catch (error) {
-    console.error('Google callback error:', error)
+    console.error('[handleGoogleCallback] Caught error:', error)
     return {
-      error: 'An unexpected error occurred during Google sign-in.',
+      error: `An unexpected error occurred during Google sign-in: ${error instanceof Error ? error.message : 'Unknown error'}`,
     }
   }
 

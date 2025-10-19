@@ -24,8 +24,7 @@ class GoogleController extends AbstractController
         private JWTTokenManagerInterface $jwtManager,
         private RefreshTokenGeneratorInterface $refreshTokenGenerator,
         private RefreshTokenManagerInterface $refreshTokenManager,
-    ) {
-    }
+    ) {}
 
     #[Route('', name: 'app_google_connect', methods: ['GET'])]
     public function connect(): RedirectResponse|Response
@@ -101,7 +100,6 @@ class GoogleController extends AbstractController
                 'token_type' => 'Bearer',
                 'expires_in' => (string) ($_ENV['JWT_TOKEN_TTL'] ?? 3600),
             ]);
-
         } catch (\Exception $e) {
             // Log l'erreur pour le débogage
             error_log('Google OAuth Error: ' . $e->getMessage());
@@ -131,6 +129,12 @@ class GoogleController extends AbstractController
         // Construire l'URL avec les paramètres en hash fragments (plus sécurisé)
         $fragmentParams = http_build_query($params);
 
-        return new RedirectResponse($callbackUrl . '#' . $fragmentParams);
+        $response = new RedirectResponse($callbackUrl . '#' . $fragmentParams);
+
+        // 💡 tue le cookie du profiler
+        $response->headers->clearCookie('sf_redirect', '/', null, true, true, 'lax');
+        // (ajuste domaine/path si besoin)
+
+        return $response;
     }
 }

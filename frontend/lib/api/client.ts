@@ -7,6 +7,12 @@ import type { AuthResponse } from '@/types/auth'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost'
 const API_PREFIX = '/api/v1'
 
+// For development: Allow self-signed certificates (server-side only)
+// This is safe because it only affects server-to-server communication
+if (process.env.NODE_ENV === 'development' && typeof window === 'undefined') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+}
+
 /**
  * API Error class for better error handling
  */
@@ -80,7 +86,6 @@ export async function apiClient<T = unknown>(
         await setSession(
           authData.access_token,
           authData.refresh_token,
-          authData.user,
           authData.expires_in
         )
 

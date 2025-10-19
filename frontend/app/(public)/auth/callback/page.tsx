@@ -22,6 +22,13 @@ export default function CallbackPage() {
         console.log('Callback URL hash:', hash)
         console.log('Parsed params:', Object.fromEntries(params.entries()))
 
+        // Check if we have any parameters at all
+        if (hash.length === 0) {
+          console.log('No callback parameters found, redirecting to login')
+          router.push('/login')
+          return
+        }
+
         const accessToken = params.get('access_token')
         const refreshToken = params.get('refresh_token')
         const expiresIn = params.get('expires_in')

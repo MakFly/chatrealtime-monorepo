@@ -4,6 +4,9 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # JWT Device Fingerprinting Configuration
+    jwt_fingerprint_mode_default: 'strict'
+    jwt_fingerprint_bypass_default: ''
 
 services:
     # default configuration for services in *this* file
@@ -18,3 +21,41 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    # Redis client configuration
+    Predis\Client:
+        factory: ['@App\Factory\RedisClientFactory', 'create']
+
+    # Security services
+    App\Security\Interface\TokenBlacklistServiceInterface:
+        class: App\Security\Service\TokenBlacklistService
+
+    App\Security\Interface\InputValidationServiceInterface:
+        class: App\Security\Service\InputValidationService
+
+    App\Security\Interface\SecurityMonitoringServiceInterface:
+        class: App\Security\Service\SecurityMonitoringService
+
+    # Event subscribers
+    App\EventSubscriber\SecurityHeadersSubscriber:
+        arguments:
+            $environment: '%kernel.environment%'
+
+    App\EventSubscriber\RateLimitSubscriber:
+        arguments:
+            $authLoginLimiter: '@limiter.auth_login'
+            $authRegisterLimiter: '@limiter.auth_register'
+            $authRefreshLimiter: '@limiter.auth_refresh'
+            $authLogoutLimiter: '@limiter.auth_logout'
+
+    # JWT Event Listeners
+    App\EventListener\JWTCreatedListener:
+        tags:
+            - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_created, method: onJWTCreated }
+
+    App\EventListener\JWTDecodedListener:
+        arguments:
+            $fingerprintMode: '%env(default:jwt_fingerprint_mode_default:JWT_DEVICE_FINGERPRINT_MODE)%'
+            $bypassPatternsString: '%env(default:jwt_fingerprint_bypass_default:JWT_DEVICE_FINGERPRINT_BYPASS)%'
+        tags:
+            - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_decoded, method: onJWTDecoded }

@@ -5,8 +5,12 @@ services:
         build:
             context: .
             dockerfile: Dockerfile.dev
+        environment:
+            - APP_ENV=dev
         depends_on:
             postgres:
+                condition: service_healthy
+            redis:
                 condition: service_healthy
         ports:
             - "80:80"

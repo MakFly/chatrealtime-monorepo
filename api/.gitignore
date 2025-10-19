@@ -31,3 +31,8 @@
 # Keep base environment in version control
 !postman/Chat-Realtime-API.postman_environment.json
 ###< postman ###
+
+###> phpunit/phpunit ###
+/phpunit.xml
+/.phpunit.cache/
+###< phpunit/phpunit ###

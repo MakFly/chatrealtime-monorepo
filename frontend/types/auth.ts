@@ -1,12 +1,14 @@
 export type User = {
-  id: number
+  id: string // UUID from Symfony
   email: string
   name: string | null
   picture: string | null
+  roles: string[] // Retrieved from /api/v1/user/me endpoint
+  created_at: string | null // ISO 8601 format
+  has_google_account: boolean
 }
 
 export type Session = {
-  user: User
   accessToken: string
   refreshToken: string
   expiresAt: number // Timestamp in milliseconds

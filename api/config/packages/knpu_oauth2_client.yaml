@@ -6,4 +6,5 @@ knpu_oauth2_client:
             client_secret: '%env(GOOGLE_CLIENT_SECRET)%'
             redirect_route: app_google_callback
             redirect_params: {}
-            use_state: true
+            # Stateless mode - no session required (compatible with JWT API)
+            use_state: false

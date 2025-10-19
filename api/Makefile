@@ -1,4 +1,4 @@
-.PHONY: help dev build rebuild workspace logs dozzle stop down clean restart status tools test test-unit test-feature test-security test-architecture test-coverage test-watch fixtures migration migrate cache cleanup-tokens
+.PHONY: help dev build rebuild workspace logs dozzle stop down clean restart status tools test test-unit test-feature test-security test-architecture test-coverage test-watch fixtures migration migrate cache cleanup-tokens security-dashboard
 
 # Variables
 COMPOSE_FILE=compose.dev.yaml
@@ -41,7 +41,8 @@ help:
 	@echo "  migrate       - Run database migrations"
 	@echo ""
 	@echo "🔒 Security Commands:"
-	@echo "  cleanup-tokens - Delete expired refresh tokens from database"
+	@echo "  cleanup-tokens     - Delete expired refresh tokens from database"
+	@echo "  security-dashboard - Open security monitoring dashboard in browser"
 
 ############# Docker Commands #############
 dev:
@@ -62,12 +63,14 @@ dev:
 	@echo ""
 	@echo "🔗 Useful links:"
 	@echo "  • App: https://localhost"
+	@echo "  • Security Dashboard: https://localhost/security/dashboard"
 	@echo "  • Database (Adminer): http://localhost:9080"
 	@echo "  • Mail catcher: http://localhost:1080"
 	@echo "  • Logs viewer: http://localhost:8888"
 	@echo "  • Redis: localhost:6379"
 	@echo ""
 	@echo "💡 Use 'make logs' to view logs or 'make dozzle' to open the logs viewer"
+	@echo "   Use 'make security-dashboard' to open security monitoring dashboard"
 	@echo "   Use 'make help' for all available commands"
 
 build:
@@ -117,7 +120,7 @@ tools:
 	@echo "🔍 Running PHPStan analysis..."
 	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/phpstan analyse src
 
-cache:
+clear:
 	@echo "🗄️  Clearing Symfony cache..."
 	@docker compose -f $(COMPOSE_FILE) exec -it $(CONTAINER_NAME) php bin/console cache:clear
 
@@ -169,3 +172,12 @@ migrate:
 cleanup-tokens:
 	@echo "🔒 Cleaning up expired refresh tokens..."
 	@docker compose -f $(COMPOSE_FILE) exec -it $(CONTAINER_NAME) php bin/console app:cleanup-expired-tokens
+
+security-dashboard:
+	@echo "🛡️  Opening Security Monitoring Dashboard..."
+	@echo ""
+	@echo "Dashboard URL: https://localhost/security/dashboard"
+	@echo ""
+	@command -v xdg-open > /dev/null && xdg-open "https://localhost/security/dashboard" || \
+	command -v open > /dev/null && open "https://localhost/security/dashboard" || \
+	echo "Please open https://localhost/security/dashboard in your browser"

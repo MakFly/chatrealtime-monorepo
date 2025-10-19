@@ -1,5 +1,5 @@
 gesdinet_jwt_refresh_token:
     refresh_token_class: App\Entity\RefreshToken
-    ttl: 2592000  # 30 days
+    manager_type: orm
+    ttl: 604800  # 7 days (reduced from 30 days for security)
     token_parameter_name: refresh_token
-    user_identity_field: email

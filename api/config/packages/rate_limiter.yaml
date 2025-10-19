@@ -1,0 +1,29 @@
+framework:
+    rate_limiter:
+        # Login endpoint: 5 attempts per minute per IP
+        auth_login:
+            policy: 'token_bucket'
+            limit: 5
+            rate:
+                interval: '1 minute'
+
+        # Register endpoint: 3 attempts per minute per IP
+        auth_register:
+            policy: 'token_bucket'
+            limit: 3
+            rate:
+                interval: '1 minute'
+
+        # Refresh endpoint: 10 attempts per minute per user
+        auth_refresh:
+            policy: 'token_bucket'
+            limit: 10
+            rate:
+                interval: '1 minute'
+
+        # Logout endpoint: 20 attempts per minute per IP
+        auth_logout:
+            policy: 'token_bucket'
+            limit: 20
+            rate:
+                interval: '1 minute'
