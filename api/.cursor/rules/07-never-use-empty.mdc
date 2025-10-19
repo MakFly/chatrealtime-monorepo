@@ -1,0 +1,372 @@
+---
+description: Never use empty() - Explicit type checking for clarity and safety
+globs:
+  - "src/**/*.php"
+  - "tests/**/*.php"
+alwaysApply: true
+---
+
+# Never Use empty() in PHP
+
+## Overview
+
+**NEVER use PHP's `empty()` function** - it's ambiguous, error-prone, and hides bugs.
+
+Based on Benjamin Eberlei's article: [When to use empty in PHP? I'd say never](https://www.beberlei.de/post/when_to_use_empty_in_php_i_say_never)
+
+## Why Never Use empty()?
+
+### 1. Ambiguous Intent
+`empty()` checks multiple conditions at once, making code intention unclear:
+
+```php
+// ❌ BAD: What are we actually checking?
+if (empty($value)) {
+    // Is $value null? Empty string? 0? False? Empty array? Undefined?
+}
+```
+
+### 2. Hides Typos and Bugs
+`empty()` suppresses undefined variable errors:
+
+```php
+// ❌ BAD: Typo in variable name - no error!
+$userName = 'John';
+if (empty($usrName)) { // Typo: 'usrName' instead of 'userName'
+    // This always executes, bug hidden!
+}
+```
+
+### 3. Mixed Type Confusion
+Different types have different "empty" meanings:
+
+```php
+// ❌ BAD: Treats different types the same
+empty('0')     // true - string "0" is empty
+empty(0)       // true - integer 0 is empty
+empty(0.0)     // true - float 0.0 is empty
+empty([])      // true - empty array
+empty(null)    // true - null is empty
+empty(false)   // true - false is empty
+```
+
+## ✅ ALWAYS Use Explicit Type Checks
+
+### For Strings
+
+```php
+// ✅ GOOD: Explicit string empty check
+if (\strlen($string) === 0) {
+    // String is empty
+}
+
+// ✅ GOOD: Check both existence and emptiness
+if (!isset($string) || \strlen($string) === 0) {
+    // Variable doesn't exist or string is empty
+}
+
+// ✅ GOOD: For nullable strings
+if ($string === null || \strlen($string) === 0) {
+    // String is null or empty
+}
+
+// ❌ BAD: Using empty()
+if (empty($string)) {
+    // What type? What are we checking?
+}
+```
+
+### For Arrays
+
+```php
+// ✅ GOOD: Explicit array empty check
+if (\count($array) === 0) {
+    // Array is empty
+}
+
+// ✅ GOOD: Check both existence and emptiness
+if (!isset($array) || \count($array) === 0) {
+    // Variable doesn't exist or array is empty
+}
+
+// ✅ GOOD: For nullable arrays
+if ($array === null || \count($array) === 0) {
+    // Array is null or empty
+}
+
+// ❌ BAD: Using empty()
+if (empty($array)) {
+    // Unclear intent
+}
+```
+
+### For Array Keys
+
+```php
+// ✅ GOOD: Check if key exists
+if (!\array_key_exists('key', $array)) {
+    // Key doesn't exist
+}
+
+// ✅ GOOD: Check if key exists and has value
+if (isset($array['key']) && $array['key'] !== null) {
+    // Key exists and is not null
+}
+
+// ✅ GOOD: Check if key exists with non-empty string
+if (\array_key_exists('key', $array) && \strlen($array['key']) > 0) {
+    // Key exists with non-empty string value
+}
+
+// ❌ BAD: Using empty()
+if (empty($array['key'])) {
+    // Hides whether key exists or value is falsy
+}
+```
+
+### For Objects
+
+```php
+// ✅ GOOD: Explicit null check
+if ($object === null) {
+    // Object is null
+}
+
+// ✅ GOOD: Check existence
+if (!isset($object)) {
+    // Variable not set
+}
+
+// ✅ GOOD: Check object property
+if ($object !== null && $object->property === null) {
+    // Object exists but property is null
+}
+
+// ❌ BAD: Using empty()
+if (empty($object)) {
+    // Unclear - checking null or something else?
+}
+```
+
+### For Booleans
+
+```php
+// ✅ GOOD: Explicit boolean check
+if ($flag === false) {
+    // Explicitly checking for false
+}
+
+// ✅ GOOD: Explicit truthy check
+if ($flag) {
+    // Explicitly checking for truthy
+}
+
+// ❌ BAD: Using empty()
+if (empty($flag)) {
+    // Confuses false with null, 0, '', etc.
+}
+```
+
+### For Numbers
+
+```php
+// ✅ GOOD: Explicit zero check
+if ($count === 0) {
+    // Count is explicitly zero
+}
+
+// ✅ GOOD: Explicit positive check
+if ($count > 0) {
+    // Count is positive
+}
+
+// ✅ GOOD: Null-safe number check
+if ($count === null || $count === 0) {
+    // Null or zero
+}
+
+// ❌ BAD: Using empty()
+if (empty($count)) {
+    // Treats 0, null, false, '' all the same
+}
+```
+
+## Performance Notes
+
+**No performance penalty** for explicit checks:
+
+```php
+// Both are optimized by OPcache when prefixed with \
+\strlen($string) === 0  // Optimized
+\count($array) === 0    // Optimized
+```
+
+**Tip**: Always prefix global functions with `\` for better performance:
+- `\strlen()` instead of `strlen()`
+- `\count()` instead of `count()`
+- `\array_key_exists()` instead of `array_key_exists()`
+
+## Migration Examples
+
+### Example 1: User Input Validation
+
+```php
+// ❌ BAD: Ambiguous validation
+public function validate(array $data): bool
+{
+    if (empty($data['username'])) {
+        return false;
+    }
+    return true;
+}
+
+// ✅ GOOD: Explicit validation
+public function validate(array $data): bool
+{
+    if (!\array_key_exists('username', $data)) {
+        throw new \InvalidArgumentException('Username is required');
+    }
+
+    if (!\is_string($data['username'])) {
+        throw new \InvalidArgumentException('Username must be a string');
+    }
+
+    if (\strlen($data['username']) === 0) {
+        throw new \InvalidArgumentException('Username cannot be empty');
+    }
+
+    return true;
+}
+```
+
+### Example 2: Collection Handling
+
+```php
+// ❌ BAD: Ambiguous collection check
+public function processOrders(array $orders): void
+{
+    if (empty($orders)) {
+        return;
+    }
+    // Process orders...
+}
+
+// ✅ GOOD: Explicit collection check
+public function processOrders(array $orders): void
+{
+    if (\count($orders) === 0) {
+        return;
+    }
+    // Process orders...
+}
+```
+
+### Example 3: Nullable Property Check
+
+```php
+// ❌ BAD: Ambiguous property check
+public function hasEmail(): bool
+{
+    return !empty($this->email);
+}
+
+// ✅ GOOD: Explicit typed property check
+public function hasEmail(): bool
+{
+    return $this->email !== null && \strlen($this->email) > 0;
+}
+
+// ✅ EVEN BETTER: With type safety
+private ?string $email = null;
+
+public function hasEmail(): bool
+{
+    // Explicit: checking both null and empty string
+    return $this->email !== null && $this->email !== '';
+}
+```
+
+### Example 4: API Response Validation
+
+```php
+// ❌ BAD: Ambiguous API validation
+public function parseResponse(array $response): User
+{
+    if (empty($response['data'])) {
+        throw new \RuntimeException('Invalid response');
+    }
+    // Parse...
+}
+
+// ✅ GOOD: Explicit API validation
+public function parseResponse(array $response): User
+{
+    if (!\array_key_exists('data', $response)) {
+        throw new \RuntimeException('Response missing "data" key');
+    }
+
+    if (!\is_array($response['data'])) {
+        throw new \RuntimeException('Response "data" must be an array');
+    }
+
+    if (\count($response['data']) === 0) {
+        throw new \RuntimeException('Response "data" is empty');
+    }
+
+    // Parse with confidence...
+}
+```
+
+## Code Review Checklist
+
+When reviewing code, **REJECT** any usage of `empty()`:
+
+- [ ] ❌ No `empty()` function calls anywhere
+- [ ] ✅ String checks use `\strlen($var) === 0`
+- [ ] ✅ Array checks use `\count($var) === 0`
+- [ ] ✅ Key existence uses `\array_key_exists()` or `isset()`
+- [ ] ✅ Null checks use `$var === null`
+- [ ] ✅ Boolean checks use explicit `=== false` or `=== true`
+- [ ] ✅ Number checks use explicit `=== 0` or `> 0`
+
+## PHPStan Rules
+
+Configure PHPStan to ban `empty()`:
+
+```yaml
+# phpstan.neon
+parameters:
+    level: max
+
+    # Ban empty() function
+    disallowedFunctionCalls:
+        -
+            function: 'empty()'
+            message: 'Use explicit type checks instead of empty(). See .cursor/rules/07-never-use-empty.mdc'
+```
+
+## Summary
+
+**NEVER use `empty()`** because:
+
+1. ❌ **Ambiguous intent** - doesn't communicate what you're checking
+2. ❌ **Hides bugs** - suppresses undefined variable errors
+3. ❌ **Type confusion** - treats different types the same way
+4. ❌ **Hard to maintain** - unclear what future developers intended
+
+**ALWAYS use explicit checks**:
+
+| Type | Use | Don't Use |
+|------|-----|-----------|
+| String | `\strlen($s) === 0` | `empty($s)` |
+| Array | `\count($a) === 0` | `empty($a)` |
+| Array Key | `\array_key_exists('k', $a)` | `empty($a['k'])` |
+| Null | `$v === null` | `empty($v)` |
+| Boolean | `$b === false` | `empty($b)` |
+| Number | `$n === 0` | `empty($n)` |
+
+**Remember**: Explicit is better than implicit. Your code should clearly communicate intent.
+
+---
+
+**Reference**: [Benjamin Eberlei - When to use empty in PHP? I'd say never](https://www.beberlei.de/post/when_to_use_empty_in_php_i_say_never)

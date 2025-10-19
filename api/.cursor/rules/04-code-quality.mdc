@@ -1,0 +1,729 @@
+# Code Quality Standards
+
+This rule file defines PHP code quality standards, static analysis, testing, and CI requirements. Follows specifications from `openspec/specs/code-quality/`.
+
+## Table of Contents
+- [PHP 8.3 Standards](#php-83-standards)
+- [PHPStan Level 9](#phpstan-level-9)
+- [Code Style (PHP CS Fixer / Pint)](#code-style)
+- [Pest Testing](#pest-testing)
+- [Coverage Requirements](#coverage-requirements)
+- [Composer Scripts](#composer-scripts)
+- [CI Pipeline](#ci-pipeline)
+
+---
+
+## PHP 8.3 Standards
+
+### When to Apply
+- **WHEN** creating any new PHP file
+- **WHEN** writing classes, functions, methods
+- **ALWAYS** in this project
+
+### Requirements
+- MUST declare `strict_types=1` at top of file
+- MUST use typed properties for all class properties
+- MUST use return types for all methods
+- SHOULD use readonly properties where immutable
+- SHOULD use enums instead of class constants
+- SHOULD use DateTimeImmutable instead of DateTime
+
+### File Template
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\User;
+
+final readonly class User
+{
+    public function __construct(
+        public UserId $id,
+        public Email $email,
+        public array $roles,
+        public \DateTimeImmutable $createdAt,
+    ) {}
+
+    public function hasRole(string $role): bool
+    {
+        return in_array($role, $this->roles, true);
+    }
+}
+```
+
+### Modern PHP Features
+
+```php
+// ✅ Use enums for fixed sets
+enum Status: string
+{
+    case Active = 'active';
+    case Inactive = 'inactive';
+    case Suspended = 'suspended';
+}
+
+// ✅ Use readonly for immutability
+final readonly class CreateUserCommand
+{
+    public function __construct(
+        public string $email,
+        public string $password,
+    ) {}
+}
+
+// ✅ Use named arguments for clarity
+$user = new User(
+    id: UserId::generate(),
+    email: new Email('user@example.com'),
+    roles: ['ROLE_USER'],
+    createdAt: new \DateTimeImmutable(),
+);
+
+// ✅ Use match expressions over switch
+$message = match ($status) {
+    Status::Active => 'User is active',
+    Status::Inactive => 'User is inactive',
+    Status::Suspended => 'User is suspended',
+};
+```
+
+---
+
+## PHPStan Level 9
+
+### When to Apply
+- **WHEN** running static analysis
+- **WHEN** validating code before commit
+- **WHEN** in CI pipeline
+
+### Requirements
+- MUST run at level 9 (maximum strictness)
+- MUST pass with zero errors for new code
+- MAY use baseline for legacy code
+- MUST update baseline when fixing errors
+
+### Configuration (Symfony)
+
+```neon
+# phpstan.neon or phpstan.neon.dist
+parameters:
+    level: 9
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - tests/bootstrap.php
+    checkMissingIterableValueType: true
+    checkGenericClassInNonGenericObjectType: true
+    reportUnmatchedIgnoredErrors: true
+    ignoreErrors:
+        # Allow dynamic properties in tests
+        - '#Access to an undefined property.*::.*#'
+          path: tests/*
+```
+
+### Configuration (Laravel)
+
+```neon
+# phpstan.neon.dist
+includes:
+    - ./vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 9
+    paths:
+        - app
+        - tests
+    excludePaths:
+        - app/Http/Middleware/TrustProxies.php
+    checkModelProperties: true
+    checkOctaneCompatibility: true
+```
+
+### Baseline Management
+
+```bash
+# Generate baseline (capture current errors)
+vendor/bin/phpstan analyse --generate-baseline
+
+# Run analysis (ignores baseline)
+vendor/bin/phpstan analyse
+
+# Update baseline after fixes
+vendor/bin/phpstan analyse --generate-baseline
+```
+
+### Common Fixes
+
+```php
+// ❌ WRONG: Missing type
+public function getUser($id)
+{
+    return User::find($id);
+}
+
+// ✅ CORRECT: Full type coverage
+public function getUser(string $id): ?User
+{
+    return User::find($id);
+}
+
+// ❌ WRONG: Array without shape
+public function getData(): array
+{
+    return ['id' => 1, 'name' => 'John'];
+}
+
+// ✅ CORRECT: Document array shape
+/**
+ * @return array{id: int, name: string}
+ */
+public function getData(): array
+{
+    return ['id' => 1, 'name' => 'John'];
+}
+```
+
+---
+
+## Code Style
+
+### When to Apply
+- **WHEN** writing any PHP code
+- **WHEN** before committing
+- **WHEN** in CI pipeline
+
+### Symfony: PHP CS Fixer
+
+```php
+// .php-cs-fixer.dist.php
+<?php
+
+$finder = PhpCsFixer\Finder::create()
+    ->in(__DIR__ . '/src')
+    ->in(__DIR__ . '/tests')
+    ->exclude('var')
+    ->exclude('vendor');
+
+return (new PhpCsFixer\Config())
+    ->setRules([
+        '@Symfony' => true,
+        '@PSR12' => true,
+        'declare_strict_types' => true,
+        'ordered_imports' => ['imports_order' => ['class', 'function', 'const']],
+        'no_unused_imports' => true,
+        'array_syntax' => ['syntax' => 'short'],
+        'binary_operator_spaces' => ['default' => 'align_single_space_minimal'],
+        'concat_space' => ['spacing' => 'one'],
+        'blank_line_before_statement' => ['statements' => ['return', 'throw', 'try']],
+        'phpdoc_align' => ['align' => 'left'],
+        'phpdoc_separation' => true,
+        'phpdoc_trim' => true,
+        'single_line_throw' => false,
+    ])
+    ->setFinder($finder);
+```
+
+### Laravel: Pint
+
+```json
+// pint.json
+{
+    "preset": "laravel",
+    "rules": {
+        "declare_strict_types": true,
+        "ordered_imports": {
+            "imports_order": ["class", "function", "const"]
+        },
+        "no_unused_imports": true,
+        "concat_space": {
+            "spacing": "one"
+        },
+        "binary_operator_spaces": {
+            "default": "align_single_space_minimal"
+        }
+    }
+}
+```
+
+### Commands
+
+```bash
+# Symfony: Fix code style
+vendor/bin/php-cs-fixer fix
+
+# Symfony: Check without fixing
+vendor/bin/php-cs-fixer fix --dry-run --diff
+
+# Laravel: Fix code style
+./vendor/bin/pint
+
+# Laravel: Check without fixing
+./vendor/bin/pint --test
+```
+
+---
+
+## Pest Testing
+
+### When to Apply
+- **WHEN** writing any new test
+- **WHEN** testing API endpoints (Feature)
+- **WHEN** testing business logic (Unit)
+- **WHEN** testing integrations (Integration)
+
+### Requirements
+- MUST use Pest syntax (`it()`, `test()`, `expect()`)
+- MUST organize tests with `describe()` blocks
+- MUST follow Arrange-Act-Assert pattern
+- MUST use descriptive test names
+
+### Unit Test Example
+
+```php
+// tests/Unit/Domain/User/UserTest.php
+<?php
+
+declare(strict_types=1);
+
+use App\Domain\User\User;
+use App\Domain\User\UserId;
+use App\Domain\User\Email;
+
+describe('User', function () {
+    it('can be created with valid data', function () {
+        // Arrange
+        $id = UserId::generate();
+        $email = new Email('user@example.com');
+        $roles = ['ROLE_USER'];
+        $createdAt = new DateTimeImmutable();
+
+        // Act
+        $user = new User($id, $email, $roles, $createdAt);
+
+        // Assert
+        expect($user->id)->toBe($id)
+            ->and($user->email)->toBe($email)
+            ->and($user->roles)->toBe($roles)
+            ->and($user->createdAt)->toBe($createdAt);
+    });
+
+    it('can check if user has role', function () {
+        $user = new User(
+            UserId::generate(),
+            new Email('admin@example.com'),
+            ['ROLE_USER', 'ROLE_ADMIN'],
+            new DateTimeImmutable()
+        );
+
+        expect($user->hasRole('ROLE_ADMIN'))->toBeTrue()
+            ->and($user->hasRole('ROLE_SUPER_ADMIN'))->toBeFalse();
+    });
+});
+```
+
+### API Test Example (Symfony)
+
+```php
+// tests/Api/UserApiTest.php
+<?php
+
+declare(strict_types=1);
+
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+
+uses(WebTestCase::class);
+
+describe('User API', function () {
+    beforeEach(function () {
+        $this->client = static::createClient();
+    });
+
+    it('returns user list', function () {
+        $this->client->request('GET', '/api/users');
+
+        expect($this->client->getResponse()->getStatusCode())->toBe(200)
+            ->and($this->client->getResponse()->headers->get('Content-Type'))
+            ->toContain('application/json');
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+
+        expect($data)->toHaveKey('data')
+            ->and($data)->toHaveKey('meta')
+            ->and($data)->toHaveKey('links');
+    });
+
+    it('creates new user', function () {
+        $this->client->request('POST', '/api/users', [], [], [
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'email' => 'newuser@example.com',
+            'password' => 'SecurePass123',
+        ]));
+
+        expect($this->client->getResponse()->getStatusCode())->toBe(201);
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+
+        expect($data)->toHaveKey('id')
+            ->and($data['email'])->toBe('newuser@example.com');
+    });
+
+    it('returns validation error for invalid email', function () {
+        $this->client->request('POST', '/api/users', [], [], [
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'email' => 'invalid-email',
+            'password' => 'SecurePass123',
+        ]));
+
+        expect($this->client->getResponse()->getStatusCode())->toBe(422)
+            ->and($this->client->getResponse()->headers->get('Content-Type'))
+            ->toContain('application/problem+json');
+
+        $problem = json_decode($this->client->getResponse()->getContent(), true);
+
+        expect($problem)->toHaveKey('violations')
+            ->and($problem['status'])->toBe(422);
+    });
+});
+```
+
+### API Test Example (Laravel)
+
+```php
+// tests/Feature/Api/UserApiTest.php
+<?php
+
+declare(strict_types=1);
+
+use App\Models\User;
+use function Pest\Laravel\{getJson, postJson, putJson, deleteJson};
+
+describe('User API', function () {
+    beforeEach(function () {
+        $this->user = User::factory()->create();
+        $this->actingAs($this->user, 'sanctum');
+    });
+
+    it('returns user list', function () {
+        User::factory()->count(5)->create();
+
+        getJson('/api/v1/users')
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => ['id', 'email', 'name', 'created_at']
+                ],
+                'meta' => ['total', 'page', 'limit', 'pages'],
+                'links' => ['self', 'first', 'last'],
+            ]);
+    });
+
+    it('creates new user', function () {
+        postJson('/api/v1/users', [
+            'email' => 'newuser@example.com',
+            'password' => 'SecurePass123',
+            'name' => 'New User',
+        ])
+            ->assertCreated()
+            ->assertJson([
+                'email' => 'newuser@example.com',
+                'name' => 'New User',
+            ]);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'newuser@example.com',
+        ]);
+    });
+
+    it('returns validation error for invalid data', function () {
+        postJson('/api/v1/users', [
+            'email' => 'invalid-email',
+            'password' => 'short',
+        ])
+            ->assertStatus(422)
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertJson([
+                'status' => 422,
+                'title' => 'Validation Failed',
+                'violations' => [
+                    ['field' => 'email'],
+                    ['field' => 'password'],
+                ],
+            ]);
+    });
+});
+```
+
+### Test Helpers
+
+```php
+// tests/Pest.php
+
+// Custom expectations
+expect()->extend('toBeValidEmail', function () {
+    return $this->toMatch('/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/');
+});
+
+// Custom matchers
+function assertQueryCount(int $expected): void
+{
+    $queries = DB::getQueryLog();
+    expect(count($queries))->toBe($expected, "Expected {$expected} queries but got " . count($queries));
+}
+
+// Usage
+it('loads users without N+1', function () {
+    User::factory()->count(10)->create();
+
+    DB::enableQueryLog();
+
+    $users = User::with('posts')->get();
+
+    assertQueryCount(2); // 1 for users, 1 for posts
+});
+```
+
+---
+
+## Coverage Requirements
+
+### When to Apply
+- **WHEN** writing tests
+- **WHEN** reviewing coverage reports
+- **WHEN** in CI pipeline
+
+### Requirements
+- Domain layer: ≥95% coverage
+- Application layer: ≥90% coverage
+- Infrastructure layer: Focus on integration tests
+- API/Controllers: HTTP tests over unit tests
+
+### Configuration
+
+```xml
+<!-- phpunit.xml or phpunit.xml.dist -->
+<coverage>
+    <include>
+        <directory suffix=".php">src/Domain</directory>
+        <directory suffix=".php">src/Application</directory>
+        <directory suffix=".php">src/Api</directory>
+    </include>
+    <exclude>
+        <directory>src/Infrastructure</directory>
+        <file>src/Kernel.php</file>
+    </exclude>
+    <report>
+        <html outputDirectory="coverage-html"/>
+        <clover outputFile="coverage.xml"/>
+    </report>
+</coverage>
+```
+
+### Commands
+
+```bash
+# Symfony: Generate coverage
+vendor/bin/pest --coverage
+
+# Symfony: HTML report
+vendor/bin/pest --coverage-html coverage-html
+
+# Laravel: Generate coverage
+./vendor/bin/pest --coverage
+
+# Minimum coverage threshold
+./vendor/bin/pest --coverage --min=80
+```
+
+---
+
+## Composer Scripts
+
+### When to Apply
+- **WHEN** setting up project
+- **ALWAYS** define these scripts in `composer.json`
+
+### Required Scripts
+
+```json
+{
+    "scripts": {
+        "test": "pest",
+        "test:coverage": "pest --coverage --min=80",
+        "test:unit": "pest --testsuite=Unit",
+        "test:integration": "pest --testsuite=Integration",
+        "test:api": "pest --testsuite=Api",
+        "analyse": "phpstan analyse",
+        "fix": "php-cs-fixer fix",
+        "check": "php-cs-fixer fix --dry-run --diff",
+        "audit": "composer audit",
+        "ci": [
+            "@check",
+            "@analyse",
+            "@test"
+        ]
+    }
+}
+```
+
+### Usage
+
+```bash
+composer test           # Run all tests
+composer test:coverage  # Run with coverage
+composer analyse        # Static analysis
+composer fix            # Fix code style
+composer check          # Check style without fixing
+composer ci             # Run all quality checks
+```
+
+---
+
+## CI Pipeline
+
+### When to Apply
+- **WHEN** setting up GitHub Actions, GitLab CI, or other CI
+- **WHEN** protecting main branch
+- **ALWAYS** in production projects
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    name: Code Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: composer install --no-progress --no-interaction
+      - run: composer check
+
+  analyse:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: composer install --no-progress --no-interaction
+      - run: composer analyse
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql
+      - run: composer install --no-progress --no-interaction
+      - run: composer test:coverage
+      - uses: codecov/codecov-action@v3
+        with:
+          files: coverage.xml
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: composer audit
+
+  openapi:
+    name: OpenAPI Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: composer install --no-progress --no-interaction
+      # Symfony
+      - run: bin/console api:openapi:export --yaml > openapi-ci.yaml
+      # Laravel
+      # - run: php artisan scribe:generate --force
+      - run: diff openapi.yaml openapi-ci.yaml
+```
+
+### GitLab CI
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - lint
+  - analyse
+  - test
+  - security
+
+variables:
+  POSTGRES_DB: test
+  POSTGRES_USER: test
+  POSTGRES_PASSWORD: test
+
+lint:
+  stage: lint
+  image: php:8.3
+  script:
+    - composer install --no-progress --no-interaction
+    - composer check
+
+analyse:
+  stage: analyse
+  image: php:8.3
+  script:
+    - composer install --no-progress --no-interaction
+    - composer analyse
+
+test:
+  stage: test
+  image: php:8.3
+  services:
+    - postgres:15
+  script:
+    - composer install --no-progress --no-interaction
+    - composer test:coverage
+  coverage: '/^\s*Lines:\s*\d+.\d+\%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+security:
+  stage: security
+  image: php:8.3
+  script:
+    - composer audit
+```

@@ -1,4 +1,4 @@
-.PHONY: help dev build rebuild workspace logs dozzle stop down clean restart status tools test fixtures migration migrate cache
+.PHONY: help dev build rebuild workspace logs dozzle stop down clean restart status tools test test-unit test-feature test-security test-architecture test-coverage test-watch fixtures migration migrate cache cleanup-tokens
 
 # Variables
 COMPOSE_FILE=compose.dev.yaml
@@ -24,13 +24,24 @@ help:
 	@echo ""
 	@echo "🛠️  Development Commands:"
 	@echo "  tools    - Run PHPStan analysis"
-	@echo "  test     - Run PHPUnit tests"
 	@echo "  cache    - Clear Symfony cache"
 	@echo ""
+	@echo "🧪 Testing Commands:"
+	@echo "  test            - Run all tests"
+	@echo "  test-unit       - Run unit tests only"
+	@echo "  test-feature    - Run feature tests only"
+	@echo "  test-security   - Run security tests only"
+	@echo "  test-architecture - Run architecture tests only"
+	@echo "  test-coverage   - Run tests with code coverage report"
+	@echo "  test-watch      - Run tests in watch mode"
+	@echo ""
 	@echo "🗄️  Database Commands:"
-	@echo "  fixtures - Load Doctrine fixtures"
-	@echo "  migration- Create new migration"
-	@echo "  migrate  - Run database migrations"
+	@echo "  fixtures      - Load Doctrine fixtures"
+	@echo "  migration     - Create new migration"
+	@echo "  migrate       - Run database migrations"
+	@echo ""
+	@echo "🔒 Security Commands:"
+	@echo "  cleanup-tokens - Delete expired refresh tokens from database"
 
 ############# Docker Commands #############
 dev:
@@ -104,13 +115,38 @@ tools:
 	@echo "🔍 Running PHPStan analysis..."
 	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/phpstan analyse src
 
-test:
-	@echo "🧪 Running PHPUnit tests..."
-	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/phpunit
-
-clear:
+cache:
 	@echo "🗄️  Clearing Symfony cache..."
 	@docker compose -f $(COMPOSE_FILE) exec -it $(CONTAINER_NAME) php bin/console cache:clear
+
+############# Testing Commands #############
+test:
+	@echo "🧪 Running all tests..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --no-coverage
+
+test-unit:
+	@echo "🧪 Running unit tests..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --testsuite=Unit --no-coverage
+
+test-feature:
+	@echo "🧪 Running feature tests..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --testsuite=Feature --no-coverage
+
+test-security:
+	@echo "🧪 Running security tests..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --testsuite=Security --no-coverage
+
+test-architecture:
+	@echo "🧪 Running architecture tests..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --testsuite=Architecture --no-coverage
+
+test-coverage:
+	@echo "🧪 Running tests with code coverage..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --coverage --min=80
+
+test-watch:
+	@echo "🧪 Running tests in watch mode..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --watch
 
 ####################################
 
@@ -126,3 +162,8 @@ migration:
 migrate:
 	@echo "🚀 Running database migrations..."
 	@docker compose -f $(COMPOSE_FILE) exec -it $(CONTAINER_NAME) php bin/console doctrine:migrations:migrate --no-interaction
+
+############# Security Commands #############
+cleanup-tokens:
+	@echo "🔒 Cleaning up expired refresh tokens..."
+	@docker compose -f $(COMPOSE_FILE) exec -it $(CONTAINER_NAME) php bin/console app:cleanup-expired-tokens

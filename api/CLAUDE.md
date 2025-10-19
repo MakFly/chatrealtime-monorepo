@@ -171,18 +171,177 @@ Copy `.env.example` to `.env` and configure:
 - **CORS**: Configured via nelmio/cors-bundle for cross-origin requests
 - **Cache headers**: Vary on Content-Type, Authorization, Origin (config/packages/api_platform.yaml:7)
 
+## Postman API Collection
+
+**MANDATORY**: Always update Postman collection after API modifications.
+
+### Collection Files
+
+```
+postman/
+├── Chat-Realtime-API.postman_collection.json    # Main collection with all endpoints
+└── Chat-Realtime-API.postman_environment.json   # Environment variables (dev)
+```
+
+### When to Update
+
+Update Postman collection when you:
+- ✅ Add new endpoint (Controller method, Route, API Platform operation)
+- ✅ Modify endpoint (path, method, parameters, response)
+- ✅ Remove endpoint
+- ✅ Change request/response schema
+- ✅ Modify authentication
+
+### Import Instructions
+
+1. Open Postman
+2. Click "Import" → "File"
+3. Select `postman/Chat-Realtime-API.postman_collection.json`
+4. Import `postman/Chat-Realtime-API.postman_environment.json`
+5. Select "Chat Realtime - Development" environment
+6. Run collection to test all endpoints
+
+### Current Endpoints
+
+- **Authentication**: Status, Register, Login, Refresh, Logout
+- **Google SSO**: OAuth initiation, Callback
+- **User Profile**: Get /me, Update profile, Change password
+- **Error Examples**: 401, 400, 409 responses
+
+See `.cursor/rules/postman-api-sync.md` for detailed update workflow.
+
 ## Testing
 
-No test suite currently configured. To add testing:
+**PEST PHP testing suite** is configured with TDD approach:
 
 ```bash
-# Inside container
-composer require --dev symfony/test-pack
-php bin/console make:test
+# Run all tests
+make test
 
-# Run tests
-make test  # or: vendor/bin/phpunit
+# Run specific test suites
+make test-unit          # Unit tests
+make test-feature       # Feature tests
+make test-architecture  # Architecture tests
+
+# Run with coverage
+make test-coverage
+
+# Watch mode
+make test-watch
 ```
+
+**Testing Philosophy**: Follow TDD (Test-Driven Development)
+1. Write test first (RED)
+2. Write minimum code to pass (GREEN)
+3. Refactor while keeping tests green
+
+See `AI-DD/tdd/test-first.md` for detailed TDD workflow.
+
+## AI-DD Framework (AI-Data-Driven Development)
+
+**IMPORTANT**: This project follows strict TDD and SOLID principles.
+
+### Core Documentation
+
+- **AI-DD/README.md** : Vue d'ensemble du framework
+- **AI-DD/interfaces/when-to-use.md** : ⭐ Guide d'utilisation des interfaces
+- **AI-DD/tdd/test-first.md** : ⭐ Workflow TDD complet
+- **AI-DD/solid/** : Principes SOLID détaillés
+- **.cursor/rules/symfony-tdd-solid.md** : Règles strictes à respecter
+
+### Key Principles
+
+1. **TDD First** : Always write tests before code (Red → Green → Refactor)
+2. **SOLID** : Follow all 5 principles for every class
+3. **Interfaces** : Use interfaces for all injected dependencies
+4. **Slim Controllers** : Controllers < 50 lines, logic in services
+5. **No Duplication** : DRY principle everywhere
+
+### Architecture Pattern
+
+```
+Controller (< 50 lines)
+    ↓ delegates to
+Service Layer (Business Logic)
+    ↓ uses
+Repository/Infrastructure (Data Access)
+```
+
+**Example**:
+```php
+// ✅ GOOD: Slim controller + Service with interface
+#[Route('/api/orders')]
+class OrderController extends AbstractController
+{
+    #[Route('', methods: ['POST'])]
+    public function create(
+        Request $request,
+        OrderService $orderService
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true);
+        $order = $orderService->createOrder($data);
+        return $this->json(['id' => $order->getId()], 201);
+    }
+}
+
+class OrderService
+{
+    public function __construct(
+        private PaymentGatewayInterface $paymentGateway,
+        private OrderRepositoryInterface $orderRepository
+    ) {}
+}
+```
+
+### Pre-commit Checklist
+
+- [ ] Tests written FIRST (TDD)
+- [ ] All tests pass (`make test`)
+- [ ] Code coverage > 80%
+- [ ] PHPStan clean (`make tools`)
+- [ ] SOLID principles respected
+- [ ] Interfaces used for dependencies
+- [ ] Controllers < 50 lines
+- [ ] No code duplication
+
+## AI Agent File Creation Rules
+
+### 🚫 STRICTLY FORBIDDEN - Markdown Summary Files
+
+**NEVER create summary, recap, or documentation .md files without EXPLICIT user permission.**
+
+This includes but is not limited to:
+- ❌ `summary.md`
+- ❌ `recap.md`
+- ❌ `changes.md`
+- ❌ `migration.md`
+- ❌ `notes.md`
+- ❌ `todo.md`
+- ❌ Any other `.md` file not explicitly requested
+
+**Why this rule exists:**
+- Summary files clutter the project
+- They duplicate information already in commit messages and documentation
+- They create maintenance burden
+- User can see all changes in chat history
+
+**Exceptions (ONLY with explicit permission):**
+- User specifically asks: "Create a summary.md file"
+- User requests: "Document this in a markdown file"
+- Project documentation updates (CLAUDE.md, AGENTS.md, AI-DD/, etc.)
+
+**What to do instead:**
+- ✅ Provide summaries in chat responses
+- ✅ Update existing documentation files (CLAUDE.md, AGENTS.md)
+- ✅ Add inline code comments
+- ✅ Update AI-DD/ documentation
+- ✅ Create commit messages with detailed descriptions
+
+**Violation consequences:**
+If you create an unauthorized .md file, you MUST:
+1. Immediately delete it
+2. Apologize to the user
+3. Provide the summary in chat instead
 
 ## Development Tips
 
@@ -191,3 +350,7 @@ make test  # or: vendor/bin/phpunit
 - Rebuild after dependency changes: `make rebuild`
 - Access database via Adminer (GUI) or direct psql connection
 - PHPStan analysis available via `make tools` for static analysis
+- **ALWAYS consult AI-DD/ documentation before writing new features**
+- **Token cleanup**: `make cleanup-tokens` (runs daily via cron recommended)
+- **⚠️ IMPORTANT**: Update Postman collection after ANY API modification (see `.cursor/rules/postman-api-sync.md`)
+- Update memory: @CLAUDE.md

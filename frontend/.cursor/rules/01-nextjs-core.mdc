@@ -1,0 +1,332 @@
+---
+description: Next.js 15 Core Principles - Server-first architecture, routing, data fetching
+globs:
+  - "app/**/*.{ts,tsx}"
+  - "components/**/*.{ts,tsx}"
+  - "lib/**/*.{ts,tsx}"
+alwaysApply: true
+---
+
+# Next.js 15 Core Principles
+
+## Server-First Architecture
+
+### Default to Server Components
+- Use Server Components by default
+- Use `"use client"` only when necessary:
+  - Interactivity (event handlers, state)
+  - Browser APIs (window, localStorage, etc.)
+  - React hooks (useState, useEffect, etc.)
+  - Context providers
+
+```typescript
+// Good: Server Component (default)
+export default async function ProductsPage() {
+  const products = await getProducts()
+  return <ProductList products={products} />
+}
+
+// Good: Client Component (when needed)
+'use client'
+
+export function ProductList({ products }: { products: Product[] }) {
+  const [selected, setSelected] = useState<string | null>(null)
+  return <div>{/* interactive UI */}</div>
+}
+
+// Bad: Unnecessary client component
+'use client' // ❌ Not needed for static rendering
+
+export function ProductCard({ product }: { product: Product }) {
+  return <div>{product.name}</div>
+}
+```
+
+### Data Fetching on the Server
+- Fetch data on the server to access backend resources securely
+- Avoid exposing API keys and reduce client/server round-trips
+- Use server-side authentication and authorization
+
+```typescript
+// Good: Server-side data fetching
+export default async function Page() {
+  const session = await auth()
+  const data = await fetch(`${API_URL}/data`, {
+    headers: { Authorization: `Bearer ${session.token}` }
+  })
+  return <Component data={data} />
+}
+
+// Bad: Client-side data fetching with exposed credentials
+'use client'
+export function Page() {
+  const [data, setData] = useState(null)
+  useEffect(() => {
+    fetch(`${API_URL}/data`, {
+      headers: { Authorization: process.env.API_KEY } // ❌ Exposed to client
+    })
+  }, [])
+}
+```
+
+## Data Fetching Patterns
+
+### Fetch Where Needed
+- Components can call `fetch` or React's `cache` anywhere
+- Requests are automatically memoized by React
+- Keep data close to components that consume it
+
+```typescript
+// Good: Fetch where needed
+async function UserProfile({ userId }: { userId: string }) {
+  const user = await getUser(userId) // Automatically memoized
+  return <div>{user.name}</div>
+}
+
+// Bad: Prop drilling
+async function Page() {
+  const user = await getUser()
+  return <Layout user={user}>
+    <Profile user={user}>
+      <Avatar user={user} /> {/* ❌ Prop drilling */}
+    </Profile>
+  </Layout>
+}
+```
+
+### Parallel Data Fetching
+- Start multiple fetches outside components
+- Await inside to avoid waterfalls
+- Use `Promise.all()` for parallel execution
+
+```typescript
+// Good: Parallel data fetching
+async function Page() {
+  const userPromise = getUser()
+  const postsPromise = getPosts()
+
+  const [user, posts] = await Promise.all([userPromise, postsPromise])
+
+  return <div>{/* render */}</div>
+}
+
+// Bad: Sequential waterfall
+async function Page() {
+  const user = await getUser()
+  const posts = await getPosts() // ❌ Waits for user to complete
+
+  return <div>{/* render */}</div>
+}
+```
+
+### Data Preloading and Caching
+```typescript
+import { cache } from 'react'
+import 'server-only'
+
+// Preload function with automatic memoization
+export const getUser = cache(async (id: string) => {
+  const data = await fetch(`/api/users/${id}`)
+  return data.json()
+})
+
+// In page.tsx
+export default async function Page({ params }: { params: { id: string } }) {
+  const user = await getUser(params.id)
+  return <UserProfile user={user} />
+}
+```
+
+## Streaming and Suspense
+
+### Progressive Rendering
+```typescript
+import { Suspense } from 'react'
+
+// loading.tsx - automatic suspense boundary
+export default function Loading() {
+  return <Skeleton />
+}
+
+// page.tsx - manual suspense for granular control
+export default function Page() {
+  return (
+    <div>
+      <Suspense fallback={<HeaderSkeleton />}>
+        <Header />
+      </Suspense>
+      <Suspense fallback={<ContentSkeleton />}>
+        <SlowContent />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+### Streaming Benefits
+- Stream HTML progressively as data becomes available
+- Wrap slow sections in `<Suspense>` to avoid blocking entire page
+- Show loading states for individual components
+- Improve perceived performance
+
+## Revalidation Strategies
+
+### Tag-Based Revalidation
+```typescript
+import { revalidateTag } from 'next/cache'
+
+// Fetch with tags
+export async function getProducts() {
+  const res = await fetch('/api/products', {
+    next: { tags: ['products'] }
+  })
+  return res.json()
+}
+
+// In server action
+'use server'
+export async function createProduct(data: ProductData) {
+  await db.products.create(data)
+  revalidateTag('products') // Revalidate all products queries
+}
+```
+
+### Path-Based Revalidation
+```typescript
+import { revalidatePath } from 'next/cache'
+
+export async function updateUser(id: string, data: UserData) {
+  await db.users.update(id, data)
+  revalidatePath(`/users/${id}`) // Revalidate specific page
+  revalidatePath('/users', 'layout') // Revalidate all nested routes
+}
+```
+
+### ISR (Incremental Static Regeneration)
+```typescript
+// Revalidate every hour
+export const revalidate = 3600
+
+async function getProducts() {
+  const res = await fetch('/api/products', {
+    next: { revalidate: 3600 }
+  })
+  return res.json()
+}
+```
+
+## File-Based Routing
+
+### Special Files
+- **page.tsx**: Creates a route
+- **layout.tsx**: Shared UI across routes
+- **loading.tsx**: Loading state with Suspense boundary
+- **error.tsx**: Error boundary for route segment
+- **not-found.tsx**: 404 page
+- **template.tsx**: Re-renders on navigation (vs layout)
+
+### Route Groups
+```
+app/
+├── (auth)/           # Route group - doesn't affect URL
+│   ├── login/
+│   └── register/
+├── (dashboard)/      # Route group
+│   ├── profile/
+│   └── settings/
+```
+
+### Private Folders
+```
+app/
+├── _lib/             # Private folder - not routable
+│   ├── hooks/
+│   ├── utils/
+│   └── constants.ts
+```
+
+### Dynamic Routes
+```
+app/
+├── users/
+│   └── [id]/
+│       └── page.tsx  # /users/123
+
+├── blog/
+│   └── [...slug]/
+│       └── page.tsx  # /blog/a/b/c (catch-all)
+```
+
+## Metadata API
+
+### Static Metadata
+```typescript
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: {
+    default: 'My App',
+    template: '%s | My App'
+  },
+  description: 'App description',
+  openGraph: {
+    title: 'My App',
+    description: 'App description',
+    images: ['/og-image.jpg']
+  }
+}
+```
+
+### Dynamic Metadata
+```typescript
+export async function generateMetadata({
+  params
+}: {
+  params: { id: string }
+}): Promise<Metadata> {
+  const product = await getProduct(params.id)
+
+  return {
+    title: product.name,
+    description: product.description,
+    openGraph: {
+      images: [product.image]
+    }
+  }
+}
+```
+
+## Environment Variables
+
+### Public vs Private
+```bash
+# .env.local
+
+# Private (server-only)
+DATABASE_URL=postgresql://...
+API_SECRET=secret123
+
+# Public (exposed to browser)
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_SITE_URL=https://example.com
+```
+
+### Usage
+```typescript
+// Server-side: Access any variable
+const dbUrl = process.env.DATABASE_URL
+
+// Client-side: Only NEXT_PUBLIC_* variables
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
+```
+
+## Key Principles Summary
+
+- ✅ **Server Components by default** - Use client components only when necessary
+- ✅ **Fetch where needed** - No prop drilling, keep data close to consumers
+- ✅ **Parallel fetching** - Avoid waterfalls with Promise.all()
+- ✅ **Stream with Suspense** - Progressive rendering for better UX
+- ✅ **Server actions for mutations** - Type-safe, secure data mutations
+- ✅ **Revalidate strategically** - Use tags or paths to invalidate cache
+- ✅ **File-based routing** - Leverage special files and conventions
+- ✅ **Metadata API** - Static and dynamic SEO optimization

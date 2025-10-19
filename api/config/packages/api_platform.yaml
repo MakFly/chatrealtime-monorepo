@@ -1,7 +1,13 @@
 api_platform:
-    title: Hello API Platform
+    title: Chat Realtime API
     version: 1.0.0
     defaults:
         stateless: true
         cache_headers:
             vary: ['Content-Type', 'Authorization', 'Origin']
+    path_segment_name_generator: api_platform.path_segment_name_generator.underscore
+    formats:
+        jsonld: ['application/ld+json']
+        json: ['application/json']
+    patch_formats:
+        json: ['application/merge-patch+json']

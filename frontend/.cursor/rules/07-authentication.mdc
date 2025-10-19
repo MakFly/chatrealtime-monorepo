@@ -1,0 +1,483 @@
+---
+description: Authentication patterns - JWT, Google OAuth, session management
+globs:
+  - "lib/auth*.{ts,tsx}"
+  - "lib/actions/auth/**/*.{ts,tsx}"
+  - "app/(auth)/**/*.{ts,tsx}"
+  - "components/**/*auth*.{ts,tsx}"
+  - "features/auth/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Authentication Patterns - Next.js 15 + JWT + Google SSO
+
+Instructions for implementing authentication in Next.js 15 applications with JWT tokens and Google OAuth.
+
+## Core Principles
+
+1. **Security First**: Tokens in HTTP-only cookies, never localStorage
+2. **Server-Side Validation**: Always verify authentication on the server
+3. **Type Safety**: Zod validation client + server, TypeScript strict mode
+4. **Server Actions**: Use next-safe-action for all auth mutations
+5. **Error Handling**: Clear, secure error messages without leaking info
+
+## File Structure
+
+```
+lib/
+├── auth.ts                        # Session management (getSession, setSession, clearSession)
+├── api/
+│   └── client.ts                  # API client with auto-refresh
+├── actions/
+│   ├── safe-action.ts             # next-safe-action config
+│   └── auth/
+│       ├── login.ts               # Login Server Action
+│       ├── register.ts            # Register Server Action
+│       ├── logout.ts              # Logout Server Action
+│       └── store-google-tokens.ts # Google SSO token storage
+└── validations/
+    └── auth.ts                    # Zod schemas
+
+hooks/
+└── use-auth.ts                    # Auth state hook (TanStack Query)
+
+types/
+└── auth.ts                        # TypeScript types
+
+middleware.ts                      # Route protection
+
+app/
+├── (auth)/
+│   ├── layout.tsx                 # Auth layout (redirect if logged in)
+│   ├── login/page.tsx             # Login page
+│   ├── register/page.tsx          # Register page
+│   └── callback/page.tsx          # Google OAuth callback
+└── (dashboard)/
+    └── layout.tsx                 # Protected layout (verify session)
+
+components/
+├── forms/
+│   ├── login-form.tsx             # Login form (Client Component)
+│   └── register-form.tsx          # Register form (Client Component)
+└── auth/
+    └── google-button.tsx          # Google SSO button
+```
+
+## Rules
+
+### R1: Cookie-Based Token Storage
+
+**ALWAYS** store JWT tokens in HTTP-only cookies, **NEVER** in localStorage or sessionStorage.
+
+#### ✅ Correct: HTTP-only cookies
+
+```typescript
+// lib/auth.ts
+import { cookies } from 'next/headers'
+
+export async function setSession(
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number
+): Promise<void> {
+  const cookieStore = await cookies()
+
+  cookieStore.set('accessToken', accessToken, {
+    httpOnly: true,                              // ✅ Inaccessible via JavaScript
+    secure: process.env.NODE_ENV === 'production', // ✅ HTTPS only in prod
+    sameSite: 'lax',                             // ✅ CSRF protection
+    path: '/',
+    maxAge: expiresIn,
+  })
+
+  cookieStore.set('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 2592000, // 30 days
+  })
+}
+```
+
+#### ❌ Wrong: localStorage or sessionStorage
+
+```typescript
+// ❌ NEVER DO THIS
+localStorage.setItem('accessToken', token)
+sessionStorage.setItem('accessToken', token)
+```
+
+---
+
+### R2: Server-Side Session Verification
+
+**ALWAYS** verify authentication on the server in Server Components and Server Actions.
+
+#### ✅ Correct: Server Component verification
+
+```typescript
+// app/(dashboard)/layout.tsx
+import { getSession } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const session = await getSession()
+
+  if (!session) {
+    redirect('/login')
+  }
+
+  return <div>{children}</div>
+}
+```
+
+#### ✅ Correct: Server Action with authActionClient
+
+```typescript
+// lib/actions/safe-action.ts
+import { createSafeActionClient } from 'next-safe-action'
+import { getSession } from '@/lib/auth'
+
+export const authActionClient = actionClient.use(async ({ next }) => {
+  const session = await getSession()
+
+  if (!session) {
+    throw new Error('Unauthorized')
+  }
+
+  return next({ ctx: { userId: session.user.id, session } })
+})
+```
+
+#### ❌ Wrong: Client-side only verification
+
+```typescript
+// ❌ NEVER rely on client-side only
+'use client'
+const { user } = useAuth()
+if (!user) return null
+```
+
+---
+
+### R3: Zod Validation Client + Server
+
+**ALWAYS** validate inputs with Zod on both client and server.
+
+#### ✅ Correct: Zod schema + validation
+
+```typescript
+// lib/validations/auth.ts
+import { z } from 'zod'
+
+export const loginSchema = z.object({
+  email: z.string().email('Adresse email invalide'),
+  password: z.string().min(1, 'Mot de passe requis'),
+})
+
+// lib/actions/auth/login.ts
+'use server'
+
+export const loginAction = actionClient
+  .schema(loginSchema)  // ✅ Server-side validation
+  .action(async ({ parsedInput }) => {
+    // parsedInput is type-safe and validated
+  })
+
+// components/forms/login-form.tsx
+'use client'
+
+const form = useForm<LoginFormData>({
+  resolver: zodResolver(loginSchema), // ✅ Client-side validation
+})
+```
+
+#### ❌ Wrong: No validation or client-only
+
+```typescript
+// ❌ No validation
+const loginAction = async (data: any) => {
+  await apiClient('/auth/login', { body: JSON.stringify(data) })
+}
+```
+
+---
+
+### R4: Automatic Token Refresh
+
+**ALWAYS** implement automatic token refresh before expiration.
+
+#### ✅ Correct: Refresh before expiration
+
+```typescript
+// lib/api/client.ts
+export async function apiClient<T>(endpoint: string, options = {}) {
+  const session = await getSession()
+
+  if (session) {
+    const fiveMinutes = 5 * 60 * 1000
+    if (Date.now() > session.expiresAt - fiveMinutes) {
+      await refreshAccessToken(session.refreshToken) // ✅ Auto-refresh
+    }
+  }
+
+  // Continue with request...
+}
+```
+
+#### ❌ Wrong: Wait for 401 error
+
+```typescript
+// ❌ Don't wait for token to expire
+const response = await fetch(url, { headers })
+if (response.status === 401) {
+  // Too late, user already saw error
+}
+```
+
+---
+
+### R5: Middleware for Route Protection
+
+**ALWAYS** use Next.js middleware for route protection and redirections.
+
+#### ✅ Correct: Middleware with cookie check
+
+```typescript
+// middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+const publicRoutes = ['/', '/login', '/register', '/callback']
+const authRoutes = ['/login', '/register']
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const accessToken = request.cookies.get('accessToken')
+
+  const isPublicRoute = publicRoutes.includes(pathname)
+  const isAuthRoute = authRoutes.includes(pathname)
+
+  // Protected route without token → /login
+  if (!isPublicRoute && !accessToken) {
+    const url = new URL('/login', request.url)
+    url.searchParams.set('redirect_to', pathname)
+    return NextResponse.redirect(url)
+  }
+
+  // Auth route with token → /dashboard
+  if (isAuthRoute && accessToken) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  return NextResponse.next()
+}
+```
+
+---
+
+### R6: Google SSO with Hash Fragments
+
+**ALWAYS** use hash fragments (not query params) for OAuth callback tokens.
+
+#### ✅ Correct: Hash fragments (client-side only)
+
+```typescript
+// Backend redirect
+return new RedirectResponse('/auth/callback#access_token=...&refresh_token=...')
+
+// Frontend extraction
+'use client'
+const hash = window.location.hash.substring(1)
+const params = new URLSearchParams(hash)
+const accessToken = params.get('access_token')
+
+// Store via Server Action
+await storeGoogleTokensAction({ accessToken, refreshToken })
+
+// Clear hash
+window.history.replaceState(null, '', '/callback')
+```
+
+#### ❌ Wrong: Query params (logged on server)
+
+```typescript
+// ❌ Tokens visible in server logs
+return new RedirectResponse('/auth/callback?access_token=...')
+```
+
+---
+
+### R7: Error Messages Without Leaking Info
+
+**ALWAYS** show generic error messages to users, log details server-side.
+
+#### ✅ Correct: Generic user-facing errors
+
+```typescript
+// Server Action
+try {
+  await apiClient('/auth/login', { body: JSON.stringify(data) })
+} catch (error) {
+  console.error('Login error:', error) // ✅ Log details server-side
+  return { error: 'Identifiants invalides' } // ✅ Generic message to user
+}
+```
+
+#### ❌ Wrong: Exposing details to user
+
+```typescript
+// ❌ Don't expose stack traces or DB errors
+catch (error) {
+  return { error: error.message } // Could leak "User not found in database users table"
+}
+```
+
+---
+
+### R8: useAuth Hook for Client Components
+
+**ALWAYS** use the `useAuth()` hook with TanStack Query for Client Components.
+
+#### ✅ Correct: useAuth with TanStack Query
+
+```typescript
+// hooks/use-auth.ts
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api/client'
+
+export function useAuth() {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => apiClient<{ user: User }>('/users/me'),
+    retry: false,
+  })
+
+  return {
+    user: data?.user || null,
+    isLoading,
+    isAuthenticated: !!data?.user,
+    refetch,
+  }
+}
+
+// Usage in Client Component
+'use client'
+const { user, isLoading, isAuthenticated } = useAuth()
+```
+
+---
+
+### R9: Form Submission with next-safe-action
+
+**ALWAYS** use `useAction` from next-safe-action for form submissions.
+
+#### ✅ Correct: useAction with react-hook-form
+
+```typescript
+'use client'
+
+import { useForm } from 'react-hook-form'
+import { useAction } from 'next-safe-action/hooks'
+import { loginAction } from '@/lib/actions/auth/login'
+
+export function LoginForm() {
+  const form = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  })
+
+  const { execute, isExecuting, result } = useAction(loginAction)
+
+  const onSubmit = (data: LoginFormData) => {
+    execute(data) // ✅ Type-safe, validated
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      {result?.serverError && <Error>{result.serverError}</Error>}
+      {/* ... */}
+      <Button disabled={isExecuting}>
+        {isExecuting ? 'Connexion...' : 'Se connecter'}
+      </Button>
+    </form>
+  )
+}
+```
+
+---
+
+### R10: Session Cleanup on Logout
+
+**ALWAYS** clear all auth state on logout (cookies, cache, redirects).
+
+#### ✅ Correct: Complete logout
+
+```typescript
+// lib/actions/auth/logout.ts
+'use server'
+
+import { authActionClient } from '../safe-action'
+import { apiClient } from '@/lib/api/client'
+import { clearSession } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+
+export const logoutAction = authActionClient.action(async ({ ctx }) => {
+  try {
+    // Invalidate refresh token on backend
+    await apiClient('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: ctx.session.refreshToken }),
+    })
+  } catch {
+    // Continue even if API fails
+  } finally {
+    await clearSession() // ✅ Delete cookies
+    redirect('/login')
+  }
+})
+```
+
+---
+
+## Quick Reference
+
+| Task | Pattern |
+|------|---------|
+| Store tokens | HTTP-only cookies via `setSession()` |
+| Verify auth | Server Components: `getSession()`, Server Actions: `authActionClient` |
+| Validate inputs | Zod schema on client (react-hook-form) + server (next-safe-action) |
+| Refresh tokens | Auto-refresh in `apiClient()` when < 5 min remaining |
+| Protect routes | Middleware with cookie check |
+| Google SSO | Hash fragments for tokens, immediate storage via Server Action |
+| Client state | `useAuth()` hook with TanStack Query |
+| Form submit | `useAction()` from next-safe-action |
+| Logout | Clear cookies + invalidate refresh token + redirect |
+
+## Security Checklist
+
+Before deploying:
+
+- [ ] Tokens in HTTP-only cookies (DevTools → Application → Cookies)
+- [ ] `secure: true` in production (HTTPS only)
+- [ ] `sameSite: 'lax'` for CSRF protection
+- [ ] No tokens in localStorage/sessionStorage
+- [ ] Server-side verification in all protected routes
+- [ ] Zod validation client + server
+- [ ] Automatic token refresh before expiration
+- [ ] Middleware protects all sensitive routes
+- [ ] Error messages don't leak info
+- [ ] CORS configured in backend
+
+## References
+
+- [Next.js Authentication Guide](https://nextjs.org/docs/app/guides/authentication)
+- [next-safe-action Docs](https://next-safe-action.dev)
+- [JWT Best Practices](https://tools.ietf.org/html/rfc8725)
+- Project AI-DD: `AI-DD/auth/jwt-flow.md`, `AI-DD/auth/google-sso.md`

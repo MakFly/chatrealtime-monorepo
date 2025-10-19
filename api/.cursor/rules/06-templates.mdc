@@ -1,0 +1,360 @@
+---
+alwaysApply: true
+---
+## Laravel Templates
+
+### Invocable Controller
+
+```php
+<?php
+// File: app/Http/Controllers/Api/V1/{EntityName}/Store{EntityName}Controller.php
+// Variables: {EntityName}
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\V1\{EntityName};
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\{EntityName}\Store{EntityName}Request;
+use App\Http\Resources\{EntityName}Resource;
+use App\Services\{EntityName}\Create{EntityName}Service;
+use Illuminate\Http\JsonResponse;
+
+final class Store{EntityName}Controller extends Controller
+{
+    public function __construct(
+        private readonly Create{EntityName}Service $service
+    ) {}
+
+    public function __invoke(Store{EntityName}Request $request): JsonResponse
+    {
+        $entity = $this->service->execute(
+            name: $request->validated('name'),
+            // Add more fields
+        );
+
+        return {EntityName}Resource::make($entity)
+            ->response()
+            ->setStatusCode(201);
+    }
+}
+```
+
+### FormRequest
+
+```php
+<?php
+// File: app/Http/Requests/{EntityName}/Store{EntityName}Request.php
+// Variables: {EntityName}, {Fields}
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\{EntityName};
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
+
+final class Store{EntityName}Request extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->can('create', {EntityName}::class) ?? false;
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public function rules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            // Add more validation rules
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Name is required',
+            'name.max' => 'Name cannot exceed 255 characters',
+        ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        $violations = collect($validator->errors())
+            ->map(fn($messages, $field) => [
+                'field' => $field,
+                'message' => $messages[0] ?? '',
+            ])
+            ->values()
+            ->all();
+
+        throw new HttpResponseException(
+            response()->problem(
+                status: 422,
+                title: 'Validation Failed',
+                detail: 'The request data is invalid',
+                extra: ['violations' => $violations]
+            )
+        );
+    }
+}
+```
+
+### API Resource
+
+```php
+<?php
+// File: app/Http/Resources/{EntityName}Resource.php
+// Variables: {EntityName}, {Fields}
+
+declare(strict_types=1);
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * @mixin \App\Models\{EntityName}
+ */
+final class {EntityName}Resource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            // Add more fields
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+
+            // Conditional fields
+            'owner' => $this->when(
+                $this->relationLoaded('owner'),
+                fn() => UserResource::make($this->owner)
+            ),
+        ];
+    }
+}
+```
+
+### Policy
+
+```php
+<?php
+// File: app/Policies/{EntityName}Policy.php
+// Variables: {EntityName}
+
+declare(strict_types=1);
+
+namespace App\Policies;
+
+use App\Models\{EntityName};
+use App\Models\User;
+use Illuminate\Auth\Access\HandlesAuthorization;
+
+final class {EntityName}Policy
+{
+    use HandlesAuthorization;
+
+    public function viewAny(?User $user): bool
+    {
+        return true; // Anyone can list
+    }
+
+    public function view(?User $user, {EntityName} $entity): bool
+    {
+        return true; // Anyone can view
+    }
+
+    public function create(?User $user): bool
+    {
+        return $user?->hasRole('user') ?? false;
+    }
+
+    public function update(?User $user, {EntityName} $entity): bool
+    {
+        return $user?->id === $entity->user_id
+            || $user?->hasRole('admin');
+    }
+
+    public function delete(?User $user, {EntityName} $entity): bool
+    {
+        return $user?->hasRole('admin') ?? false;
+    }
+}
+```
+
+### Service (Laravel)
+
+```php
+<?php
+// File: app/Services/{EntityName}/Create{EntityName}Service.php
+// Variables: {EntityName}
+
+declare(strict_types=1);
+
+namespace App\Services\{EntityName};
+
+use App\Models\{EntityName};
+use App\Repositories\{EntityName}Repository;
+use App\Events\{EntityName}Created;
+use Illuminate\Support\Facades\Event;
+
+final readonly class Create{EntityName}Service
+{
+    public function __construct(
+        private {EntityName}Repository $repository,
+    ) {}
+
+    public function execute(string $name): {EntityName}
+    {
+        $entity = new {EntityName}([
+            'name' => $name,
+            // Add more fields
+        ]);
+
+        $this->repository->save($entity);
+
+        Event::dispatch(new {EntityName}Created($entity));
+
+        return $entity;
+    }
+}
+```
+
+### Eloquent Model
+
+```php
+<?php
+// File: app/Models/{EntityName}.php
+// Variables: {EntityName}, {table}, {Fields}
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+final class {EntityName} extends Model
+{
+    use HasFactory;
+
+    protected $table = '{table}';
+
+    protected $fillable = [
+        'name',
+        // Add more fillable fields
+    ];
+
+    protected $casts = [
+        'created_at' => 'immutable_datetime',
+        'updated_at' => 'immutable_datetime',
+    ];
+
+    // Relationships
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // Scopes
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+}
+```
+
+### Pest Feature Test (Laravel)
+
+```php
+<?php
+// File: tests/Feature/Api/{EntityName}ApiTest.php
+// Variables: {EntityName}, {endpoint}
+
+declare(strict_types=1);
+
+use App\Models\{EntityName};
+use App\Models\User;
+use function Pest\Laravel\{getJson, postJson, putJson, deleteJson};
+
+describe('{EntityName} API', function () {
+    beforeEach(function () {
+        $this->user = User::factory()->create();
+        $this->actingAs($this->user, 'sanctum');
+    });
+
+    it('returns {entity} list', function () {
+        {EntityName}::factory()->count(5)->create();
+
+        getJson('/api/v1/{endpoint}')
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => ['id', 'name', 'created_at']
+                ],
+            ]);
+    });
+
+    it('creates new {entity}', function () {
+        postJson('/api/v1/{endpoint}', [
+            'name' => 'Test {EntityName}',
+        ])
+            ->assertCreated()
+            ->assertJson([
+                'name' => 'Test {EntityName}',
+            ]);
+
+        $this->assertDatabaseHas('{table}', [
+            'name' => 'Test {EntityName}',
+        ]);
+    });
+
+    it('validates required fields', function () {
+        postJson('/api/v1/{endpoint}', [
+            'name' => '', // Invalid
+        ])
+            ->assertStatus(422)
+            ->assertJsonStructure([
+                'status',
+                'title',
+                'violations',
+            ]);
+    });
+
+    it('updates existing {entity}', function () {
+        $entity = {EntityName}::factory()->create(['user_id' => $this->user->id]);
+
+        putJson("/api/v1/{endpoint}/{$entity->id}", [
+            'name' => 'Updated Name',
+        ])
+            ->assertOk()
+            ->assertJson([
+                'name' => 'Updated Name',
+            ]);
+    });
+
+    it('deletes {entity}', function () {
+        $entity = {EntityName}::factory()->create();
+
+        deleteJson("/api/v1/{endpoint}/{$entity->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('{table}', [
+            'id' => $entity->id,
+        ]);
+    });
+});
+```

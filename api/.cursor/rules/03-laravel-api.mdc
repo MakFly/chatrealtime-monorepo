@@ -1,0 +1,648 @@
+---
+alwaysApply: false
+---
+## FormRequest Validation
+
+### When to Apply
+- **WHEN** accepting any user input (POST, PUT, PATCH)
+- **WHEN** validating request data
+- **WHEN** authorizing access to endpoint
+
+### Requirements
+- FormRequests MUST validate all input
+- FormRequests MUST define authorization logic
+- FormRequests MUST return RFC7807 on validation failure
+- FormRequests MUST use typed properties (PHP 8.3)
+
+### Pattern
+
+```php
+// app/Http/Requests/User/StoreUserRequest.php
+declare(strict_types=1);
+
+namespace App\Http\Requests\User;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
+
+final class StoreUserRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        // Check if user has permission to create users
+        return $this->user()?->can('create', User::class) ?? false;
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public function rules(): array
+    {
+        return [
+            'email' => ['required', 'email', 'unique:users,email', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'roles' => ['sometimes', 'array'],
+            'roles.*' => ['string', 'in:admin,user,moderator'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'email.required' => 'Email address is required',
+            'email.email' => 'Invalid email format',
+            'email.unique' => 'Email already registered',
+            'password.min' => 'Password must be at least 8 characters',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'email' => 'email address',
+            'password' => 'password',
+        ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        // Return RFC7807 format
+        $violations = collect($validator->errors())
+            ->map(fn($messages, $field) => [
+                'field' => $field,
+                'message' => $messages[0] ?? '',
+            ])
+            ->values()
+            ->all();
+
+        throw new HttpResponseException(
+            response()->problem(
+                status: 422,
+                title: 'Validation Failed',
+                detail: 'The request data is invalid',
+                extra: ['violations' => $violations]
+            )
+        );
+    }
+
+    protected function failedAuthorization(): void
+    {
+        throw new HttpResponseException(
+            response()->problem(
+                status: 403,
+                title: 'Forbidden',
+                detail: 'You do not have permission to perform this action'
+            )
+        );
+    }
+}
+```
+
+### Update Request Pattern
+
+```php
+final class UpdateUserRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        $user = User::findOrFail($this->route('id'));
+        return $this->user()?->can('update', $user) ?? false;
+    }
+
+    public function rules(): array
+    {
+        $userId = $this->route('id');
+
+        return [
+            'email' => ['sometimes', 'email', "unique:users,email,{$userId}", 'max:255'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'password' => ['sometimes', 'string', 'min:8', 'max:255'],
+        ];
+    }
+}
+```
+
+---
+
+## API Resources
+
+### When to Apply
+- **WHEN** returning data from API endpoints
+- **WHEN** transforming Eloquent models to JSON
+- **WHEN** hiding sensitive fields
+- **WHEN** including relationships conditionally
+
+### Requirements
+- NEVER return Eloquent models directly
+- MUST define explicit field mappings
+- MUST hide sensitive fields (password, tokens)
+- SHOULD include related resources conditionally
+
+### Pattern
+
+```php
+// app/Http/Resources/UserResource.php
+declare(strict_types=1);
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * @mixin \App\Models\User
+ */
+final class UserResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'email' => $this->email,
+            'name' => $this->name,
+            'roles' => $this->roles,
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+
+            // Conditional fields
+            'profile' => $this->whenLoaded('profile', fn() => ProfileResource::make($this->profile)),
+            'posts' => $this->whenLoaded('posts', fn() => PostResource::collection($this->posts)),
+
+            // Include only for authenticated user viewing own profile
+            'email_verified_at' => $this->when(
+                $request->user()?->id === $this->id,
+                $this->email_verified_at?->toIso8601String()
+            ),
+
+            // Admin-only field
+            'last_login_ip' => $this->when(
+                $request->user()?->isAdmin(),
+                $this->last_login_ip
+            ),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function with(Request $request): array
+    {
+        return [
+            'meta' => [
+                'version' => '1.0',
+            ],
+        ];
+    }
+}
+```
+
+### Collection Resource
+
+```php
+// app/Http/Resources/UserCollection.php
+final class UserCollection extends ResourceCollection
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'data' => $this->collection,
+            'meta' => [
+                'total' => $this->total(),
+                'page' => $this->currentPage(),
+                'limit' => $this->perPage(),
+                'pages' => $this->lastPage(),
+            ],
+            'links' => [
+                'self' => $request->url(),
+                'first' => $this->url(1),
+                'last' => $this->url($this->lastPage()),
+                'next' => $this->nextPageUrl(),
+                'prev' => $this->previousPageUrl(),
+            ],
+        ];
+    }
+}
+```
+
+---
+
+## Policies Authorization
+
+### When to Apply
+- **WHEN** implementing resource-based authorization
+- **WHEN** checking if user can view/create/update/delete
+- **WHEN** authorization depends on resource state
+
+### Requirements
+- Policies MUST be registered in `AuthServiceProvider`
+- Policies MUST return bool (not throw exceptions)
+- Policies SHOULD use clear method names: `view`, `create`, `update`, `delete`
+- Use `@return bool|null` for "abstain" voting
+
+### Pattern
+
+```php
+// app/Policies/UserPolicy.php
+declare(strict_types=1);
+
+namespace App\Policies;
+
+use App\Models\User;
+use Illuminate\Auth\Access\HandlesAuthorization;
+
+final class UserPolicy
+{
+    use HandlesAuthorization;
+
+    public function viewAny(?User $user): bool
+    {
+        // Anyone can list users (even guests)
+        return true;
+    }
+
+    public function view(?User $user, User $model): bool
+    {
+        // Anyone can view user profiles
+        return true;
+    }
+
+    public function create(?User $user): bool
+    {
+        // Only admins can create users
+        return $user?->hasRole('admin') ?? false;
+    }
+
+    public function update(?User $user, User $model): bool
+    {
+        // Users can update their own profile, admins can update all
+        return $user?->id === $model->id
+            || $user?->hasRole('admin');
+    }
+
+    public function delete(?User $user, User $model): bool
+    {
+        // Only admins can delete users (but not themselves)
+        return $user?->hasRole('admin')
+            && $user->id !== $model->id;
+    }
+
+    public function restore(?User $user, User $model): bool
+    {
+        return $user?->hasRole('admin') ?? false;
+    }
+
+    public function forceDelete(?User $user, User $model): bool
+    {
+        return $user?->hasRole('super_admin') ?? false;
+    }
+}
+```
+
+### Register Policy
+
+```php
+// app/Providers/AuthServiceProvider.php
+protected $policies = [
+    User::class => UserPolicy::class,
+];
+```
+
+### Usage in Controllers
+
+```php
+public function update(UpdateUserRequest $request, string $id): JsonResponse
+{
+    $user = User::findOrFail($id);
+
+    // Authorization check
+    $this->authorize('update', $user);
+
+    $updated = $this->service->update($user, $request->validated());
+
+    return UserResource::make($updated);
+}
+```
+
+### Usage in FormRequests
+
+```php
+public function authorize(): bool
+{
+    $user = User::findOrFail($this->route('id'));
+    return $this->user()?->can('update', $user) ?? false;
+}
+```
+
+---
+
+## Service Layer
+
+### When to Apply
+- **WHEN** implementing business logic
+- **WHEN** coordinating multiple repositories
+- **WHEN** orchestrating domain operations
+
+### Requirements
+- Services MUST be stateless
+- Services MUST NOT extend base classes (use composition)
+- Services MUST return Domain models, not arrays
+- Services SHOULD be single-purpose
+
+### Pattern
+
+```php
+// app/Services/User/CreateUserService.php
+declare(strict_types=1);
+
+namespace App\Services\User;
+
+use App\Models\User;
+use App\Repositories\UserRepository;
+use App\Events\UserCreated;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Event;
+
+final readonly class CreateUserService
+{
+    public function __construct(
+        private UserRepository $repository,
+    ) {}
+
+    public function execute(string $email, string $password, ?string $name = null): User
+    {
+        $user = new User([
+            'email' => $email,
+            'password' => Hash::make($password),
+            'name' => $name,
+            'roles' => ['user'],
+        ]);
+
+        $this->repository->save($user);
+
+        Event::dispatch(new UserCreated($user));
+
+        return $user;
+    }
+}
+```
+
+### Repository Pattern (Optional)
+
+```php
+// app/Repositories/UserRepository.php
+final class UserRepository
+{
+    public function save(User $user): void
+    {
+        $user->save();
+    }
+
+    public function findById(string $id): ?User
+    {
+        return User::find($id);
+    }
+
+    public function findByEmail(string $email): ?User
+    {
+        return User::where('email', $email)->first();
+    }
+
+    public function paginate(int $perPage = 20): LengthAwarePaginator
+    {
+        return User::paginate($perPage);
+    }
+
+    public function delete(User $user): void
+    {
+        $user->delete();
+    }
+}
+```
+
+---
+
+## Eloquent Optimization
+
+### When to Apply
+- **WHEN** loading related models
+- **WHEN** counting relationships
+- **WHEN** implementing list endpoints
+- **ALWAYS** be aware of N+1 queries
+
+### N+1 Prevention
+
+```php
+// ❌ WRONG: N+1 query problem
+$users = User::all(); // 1 query
+foreach ($users as $user) {
+    echo $user->posts->count(); // N queries (one per user)
+}
+
+// ✅ CORRECT: Eager load with withCount
+$users = User::withCount('posts')->get(); // 1 query
+foreach ($users as $user) {
+    echo $user->posts_count; // No additional query
+}
+
+// ✅ CORRECT: Eager load relationships
+$users = User::with('posts', 'profile')->get(); // 3 queries total
+```
+
+### Query Scopes
+
+```php
+// app/Models/User.php
+final class User extends Authenticatable
+{
+    public function scopeActive(Builder $query): void
+    {
+        $query->where('status', 'active');
+    }
+
+    public function scopeWithRole(Builder $query, string $role): void
+    {
+        $query->whereJsonContains('roles', $role);
+    }
+
+    public function scopeCreatedAfter(Builder $query, string $date): void
+    {
+        $query->where('created_at', '>=', $date);
+    }
+}
+
+// Usage
+$users = User::active()
+    ->withRole('admin')
+    ->createdAfter('2024-01-01')
+    ->get();
+```
+
+### Attribute Casting
+
+```php
+final class User extends Authenticatable
+{
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'roles' => 'array',
+        'settings' => 'json',
+        'is_active' => 'boolean',
+        'created_at' => 'immutable_datetime',
+        'updated_at' => 'immutable_datetime',
+    ];
+}
+```
+
+### Select Specific Columns
+
+```php
+// ❌ WRONG: Load all columns
+$users = User::all();
+
+// ✅ CORRECT: Select only needed columns
+$users = User::select(['id', 'email', 'name'])->get();
+```
+
+---
+
+## Authentication
+
+### When to Apply
+- **WHEN** implementing API authentication
+- **WHEN** protecting endpoints
+
+### Sanctum (SPA/Mobile)
+
+```php
+// config/sanctum.php
+'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost,127.0.0.1')),
+
+// routes/api.php
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/user', fn(Request $request) => UserResource::make($request->user()));
+    Route::apiResource('posts', PostController::class);
+});
+
+// Login controller
+public function login(LoginRequest $request): JsonResponse
+{
+    $user = User::where('email', $request->validated('email'))->first();
+
+    if (!$user || !Hash::check($request->validated('password'), $user->password)) {
+        return response()->problem(401, 'Unauthorized', 'Invalid credentials');
+    }
+
+    $token = $user->createToken('api-token')->plainTextToken;
+
+    return response()->json([
+        'access_token' => $token,
+        'token_type' => 'Bearer',
+        'user' => UserResource::make($user),
+    ]);
+}
+```
+
+### Passport (OAuth2)
+
+```php
+// Install: composer require laravel/passport
+// Setup: php artisan passport:install
+
+// routes/api.php
+Route::middleware('auth:api')->group(function () {
+    Route::get('/user', fn(Request $request) => UserResource::make($request->user()));
+});
+```
+
+---
+
+## Middleware Patterns
+
+### Rate Limiting
+
+```php
+// routes/api.php
+Route::middleware(['throttle:60,1'])->group(function () {
+    Route::post('/login', LoginController::class);
+});
+
+// Custom rate limiter
+// app/Providers/RouteServiceProvider.php
+RateLimiter::for('api', function (Request $request) {
+    return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+});
+
+Route::middleware(['throttle:api'])->group(function () {
+    // ...
+});
+```
+
+### CORS Middleware
+
+```php
+// Applied automatically via config/cors.php
+// See 01-common-api.md for configuration
+```
+
+---
+
+## Route Organization
+
+### When to Apply
+- **WHEN** organizing API routes
+- **WHEN** versioning API
+- **WHEN** grouping protected routes
+
+### Pattern
+
+```php
+// routes/api.php
+use Illuminate\Support\Facades\Route;
+
+// Public routes
+Route::prefix('v1')->group(function () {
+    Route::post('/login', LoginController::class);
+    Route::post('/register', RegisterController::class);
+});
+
+// Protected routes
+Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+    Route::get('/user', fn(Request $request) => UserResource::make($request->user()));
+
+    // RESTful resources
+    Route::apiResource('users', UserController::class);
+    Route::apiResource('posts', PostController::class);
+
+    // Single-action controllers
+    Route::post('/users/{id}/verify', VerifyUserController::class);
+    Route::post('/users/{id}/suspend', SuspendUserController::class);
+});
+
+// Admin routes
+Route::prefix('v1/admin')
+    ->middleware(['auth:sanctum', 'can:access-admin'])
+    ->group(function () {
+        Route::apiResource('users', Admin\UserController::class);
+    });
+```
+
+### Version Naming
+
+```
+/api/v1/users
+/api/v2/users (breaking changes)
+```

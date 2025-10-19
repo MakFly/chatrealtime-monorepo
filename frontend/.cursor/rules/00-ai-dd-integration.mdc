@@ -1,0 +1,227 @@
+---
+description: Always apply - AI-DD Documentation Integration
+globs:
+  - "**/*.{ts,tsx,js,jsx}"
+alwaysApply: true
+---
+
+# AI-DD Documentation Integration
+
+## Overview
+
+The `AI-DD/` directory contains comprehensive documentation for AI-driven development with Next.js 15, React 19, and the modern 2025 stack.
+
+## When to Consult AI-DD
+
+**ALWAYS reference AI-DD documentation when:**
+- Creating new features or components
+- Implementing data fetching patterns
+- Writing forms with validation
+- Building server actions
+- Managing state
+- Following architecture patterns
+- Ensuring code quality and standards
+
+## Documentation Map
+
+### Core Patterns (Always Read First)
+- `AI-DD/00-INDEX.md` - Complete overview and index
+- `AI-DD/QUICKSTART.md` - Quick reference guide
+- `AI-DD/03-CLEAN-ARCHITECTURE.md` - Feature-first architecture (CRITICAL)
+
+### By Task Type
+
+**UI Components:**
+- `AI-DD/04-SHADCN-UI.md` - shadcn/ui + Tailwind CSS v4 patterns
+- `AI-DD/02-TYPESCRIPT-REACT.md` - TypeScript & React 19 best practices
+
+**Routes & Pages:**
+- `AI-DD/01-NEXTJS-PATTERNS.md` - Next.js 15 App Router patterns
+- `AI-DD/03-CLEAN-ARCHITECTURE.md` - Feature-first organization
+
+**Data Fetching:**
+- `AI-DD/05-TANSTACK-QUERY.md` - TanStack Query v5 patterns
+- `AI-DD/16-API-PATTERNS.md` - API client patterns (serverAPI/clientAPI)
+
+**Forms:**
+- `AI-DD/06-SAFE-ACTIONS.md` - next-safe-action patterns
+- `.cursor/rules/05-react-hook-form.mdc` - React Hook Form + Zod
+
+**State Management:**
+- `AI-DD/07-ZUSTAND.md` - Zustand stores and patterns
+
+**Complete Features:**
+- `AI-DD/08-PATTERNS-RECIPES.md` - End-to-end feature examples
+
+**Code Quality:**
+- `AI-DD/09-TYPESCRIPT-STRICT-TYPING.md` - NO 'any', strict typing
+- `AI-DD/10-CODING-STANDARDS.md` - Project standards
+- `AI-DD/14-ERROR-HANDLING.md` - Error handling patterns
+
+## Critical Project Rules
+
+```typescript
+// ⚠️ MUST FOLLOW - From AI-DD Documentation
+type ProjectRules = {
+  // TypeScript
+  types: "ALWAYS 'type', NEVER 'interface'"
+  strictMode: "NO 'any' types - use proper types or 'unknown'"
+
+  // Architecture
+  organization: "Feature-first (features/ not components/)"
+  structure: "features/[domain]/{components,hooks,lib,stores}"
+
+  // Next.js
+  defaultComponent: "Server Components (only use 'use client' when needed)"
+  routes: "App Router patterns from AI-DD/01-NEXTJS-PATTERNS.md"
+
+  // API
+  apiClient: "Use serverAPI/clientAPI from AI-DD/16-API-PATTERNS.md"
+  noDirectFetch: "Never direct fetch() - use unified API clients"
+
+  // Code Quality
+  linting: "Follow AI-DD/12-LINT-ROADMAP.md for 100% compliance"
+  standards: "Follow AI-DD/10-CODING-STANDARDS.md conventions"
+}
+```
+
+## Feature-First Architecture (CRITICAL)
+
+```
+✅ CORRECT - Feature-first
+features/cars/
+  ├── components/       # UI components for cars
+  ├── hooks/           # Custom hooks for cars
+  ├── lib/             # Business logic, API clients
+  ├── stores/          # Zustand stores
+  └── index.ts         # Public API exports
+
+features/auth/
+  ├── components/
+  ├── hooks/
+  ├── lib/
+  └── index.ts
+
+❌ INCORRECT - Type-first (DO NOT USE)
+components/cars/
+hooks/cars/
+lib/cars/
+stores/cars/
+```
+
+## Development Workflow
+
+### 1. Before Creating ANY Code
+- Read `AI-DD/00-INDEX.md` or `AI-DD/QUICKSTART.md` for overview
+- Identify the domain (cars, dealers, announcements, auth, etc.)
+- Consult relevant AI-DD documentation
+
+### 2. During Development
+- Follow patterns from AI-DD documentation
+- Use `type` not `interface`
+- Server Components by default
+- Feature-first organization
+- NO 'any' types
+
+### 3. Code Quality Checks
+- TypeScript strict mode compliance
+- ESLint 100% (see `AI-DD/12-LINT-ROADMAP.md`)
+- Follow `AI-DD/10-CODING-STANDARDS.md`
+- Proper error handling (`AI-DD/14-ERROR-HANDLING.md`)
+
+## Quick Examples
+
+### Creating a Component
+```typescript
+// ✅ CORRECT - Follow AI-DD/04-SHADCN-UI.md
+// features/cars/components/car-card.tsx
+
+import type { Car } from '../lib/types'
+import { Card, CardContent } from '@/shared/components/ui/card'
+import { cn } from '@/shared/lib/utils'
+
+type CarCardProps = {
+  car: Car
+  className?: string
+}
+
+export function CarCard({ car, className }: CarCardProps) {
+  return (
+    <Card className={cn("hover:shadow-lg transition", className)}>
+      <CardContent>
+        <h3>{car.brand} {car.model}</h3>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+### Creating a Data Fetching Hook
+```typescript
+// ✅ CORRECT - Follow AI-DD/05-TANSTACK-QUERY.md
+// features/cars/hooks/use-cars.ts
+
+import { useQuery } from '@tanstack/react-query'
+import { clientAPI } from '@/shared/lib/api/client'
+import type { Car } from '../lib/types'
+
+export function useCars() {
+  return useQuery({
+    queryKey: ['cars'],
+    queryFn: async () => {
+      const response = await clientAPI.get<Car[]>('/api/cars')
+      return response.data
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}
+```
+
+### Creating a Server Action
+```typescript
+// ✅ CORRECT - Follow AI-DD/06-SAFE-ACTIONS.md
+// features/cars/lib/actions.ts
+
+'use server'
+
+import { authActionClient } from '@/shared/lib/actions/safe-action'
+import { z } from 'zod'
+import { serverPost } from '@/shared/lib/api/server'
+
+const createCarSchema = z.object({
+  brand: z.string().min(1),
+  model: z.string().min(1),
+  year: z.number().int().min(1900),
+})
+
+export const createCarAction = authActionClient
+  .schema(createCarSchema)
+  .action(async ({ parsedInput }) => {
+    const response = await serverPost('/api/cars', parsedInput)
+    return response.data
+  })
+```
+
+## Integration with Other Cursor Rules
+
+This rule works alongside other cursor rules:
+- `01-nextjs-core.mdc` - Enforces Next.js 15 patterns
+- `02-next-safe-action.mdc` - Server action patterns
+- `03-tanstack-query.mdc` - Data fetching patterns
+- `04-shadcn-ui.mdc` - UI component patterns
+- `05-react-hook-form.mdc` - Form validation
+- `06-performance.mdc` - Performance optimization
+- `07-authentication.mdc` - Auth patterns
+
+**AI-DD provides the detailed documentation and examples; cursor rules enforce the patterns.**
+
+## Resources
+
+- **AI-DD Documentation**: `frontend/AI-DD/`
+- **CLAUDE.md**: `frontend/CLAUDE.md` (updated with AI-DD integration)
+- **Backend API**: `../api/CLAUDE.md`
+- **Postman Collection**: `../api/postman/`
+
+---
+
+**Always consult AI-DD documentation before creating features. All patterns reflect 2025 best practices.**

@@ -1,0 +1,584 @@
+---
+description: TanStack Query v5 - Server state management, caching, prefetching
+globs:
+  - "lib/queries/**/*.{ts,tsx}"
+  - "hooks/**/*query*.{ts,tsx}"
+  - "features/**/hooks/**/*.{ts,tsx}"
+  - "app/**/page.{ts,tsx}"
+alwaysApply: false
+---
+
+# TanStack Query (React Query) - Server State Management
+
+## Overview
+
+**TanStack Query** provides powerful server state management with caching, background updates, and automatic refetching.
+
+**Why use it?**
+- ✅ Automatic caching and background refetching
+- ✅ Server-side prefetching with hydration
+- ✅ Optimistic updates
+- ✅ Loading and error states
+- ✅ Request deduplication
+- ✅ Pagination and infinite queries
+
+## Setup
+
+### 1. Provider Setup
+
+```typescript
+// app/providers.tsx
+'use client'
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryStreamedHydration } from '@tanstack/react-query-next-experimental'
+import { useState } from 'react'
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000, // 1 minute
+        gcTime: 5 * 60 * 1000, // 5 minutes
+      }
+    }
+  }))
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ReactQueryStreamedHydration>
+        {children}
+      </ReactQueryStreamedHydration>
+    </QueryClientProvider>
+  )
+}
+```
+
+### 2. Add to Root Layout
+
+```typescript
+// app/layout.tsx
+import { Providers } from './providers'
+
+export default function RootLayout({
+  children
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  )
+}
+```
+
+## Basic Usage
+
+### Simple Query
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+
+async function getUsers() {
+  const res = await fetch('/api/users')
+  if (!res.ok) throw new Error('Failed to fetch users')
+  return res.json()
+}
+
+export function UsersList() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['users'],
+    queryFn: getUsers
+  })
+
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>Error: {error.message}</div>
+
+  return (
+    <ul>
+      {data.map(user => (
+        <li key={user.id}>{user.name}</li>
+      ))}
+    </ul>
+  )
+}
+```
+
+### Query with Parameters
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+
+async function getUser(id: string) {
+  const res = await fetch(`/api/users/${id}`)
+  if (!res.ok) throw new Error('Failed to fetch user')
+  return res.json()
+}
+
+export function UserProfile({ userId }: { userId: string }) {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['users', userId],
+    queryFn: () => getUser(userId)
+  })
+
+  if (isLoading) return <div>Loading...</div>
+
+  return <div>{user.name}</div>
+}
+```
+
+## Server-Side Prefetching
+
+### Prefetch in Server Component
+
+```typescript
+// app/users/page.tsx
+import {
+  dehydrate,
+  HydrationBoundary,
+  QueryClient
+} from '@tanstack/react-query'
+import { UsersList } from './users-list'
+
+async function getUsers() {
+  const res = await fetch('/api/users')
+  return res.json()
+}
+
+export default async function UsersPage() {
+  const queryClient = new QueryClient()
+
+  // Prefetch on server
+  await queryClient.prefetchQuery({
+    queryKey: ['users'],
+    queryFn: getUsers
+  })
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <UsersList />
+    </HydrationBoundary>
+  )
+}
+```
+
+### Client Component (UsersList)
+
+```typescript
+// app/users/users-list.tsx
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+
+export function UsersList() {
+  // This will use prefetched data from server
+  const { data } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const res = await fetch('/api/users')
+      return res.json()
+    }
+  })
+
+  return <ul>{data.map(user => <li key={user.id}>{user.name}</li>)}</ul>
+}
+```
+
+## Mutations
+
+### Basic Mutation
+
+```typescript
+'use client'
+
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+
+async function createUser(data: { name: string; email: string }) {
+  const res = await fetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error('Failed to create user')
+  return res.json()
+}
+
+export function CreateUserForm() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: () => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('User created successfully')
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    }
+  })
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+
+    mutation.mutate({
+      name: formData.get('name') as string,
+      email: formData.get('email') as string
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="name" required />
+      <input name="email" type="email" required />
+      <button disabled={mutation.isPending}>
+        {mutation.isPending ? 'Creating...' : 'Create User'}
+      </button>
+    </form>
+  )
+}
+```
+
+### Mutation with Server Actions
+
+```typescript
+'use client'
+
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { createUserAction } from '@/lib/actions/user'
+
+export function CreateUserForm() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async (data: { name: string; email: string }) => {
+      return createUserAction(data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    }
+  })
+
+  // ... form implementation
+}
+```
+
+## Optimistic Updates
+
+```typescript
+'use client'
+
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+
+type User = { id: string; name: string; email: string }
+
+export function UpdateUserForm({ user }: { user: User }) {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async (updatedUser: Partial<User>) => {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser)
+      })
+      return res.json()
+    },
+    onMutate: async (updatedUser) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['users', user.id] })
+
+      // Snapshot previous value
+      const previousUser = queryClient.getQueryData(['users', user.id])
+
+      // Optimistically update
+      queryClient.setQueryData(['users', user.id], (old: User) => ({
+        ...old,
+        ...updatedUser
+      }))
+
+      // Return context with snapshot
+      return { previousUser }
+    },
+    onError: (err, updatedUser, context) => {
+      // Rollback on error
+      queryClient.setQueryData(
+        ['users', user.id],
+        context?.previousUser
+      )
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['users', user.id] })
+    }
+  })
+
+  // ... form implementation
+}
+```
+
+## Advanced Patterns
+
+### Pagination
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+
+async function getPaginatedUsers(page: number) {
+  const res = await fetch(`/api/users?page=${page}`)
+  return res.json()
+}
+
+export function PaginatedUsersList() {
+  const [page, setPage] = useState(1)
+
+  const { data, isLoading, isPlaceholderData } = useQuery({
+    queryKey: ['users', { page }],
+    queryFn: () => getPaginatedUsers(page),
+    placeholderData: (previousData) => previousData // Keep previous data while fetching
+  })
+
+  return (
+    <div>
+      <ul>
+        {data?.users.map(user => (
+          <li key={user.id}>{user.name}</li>
+        ))}
+      </ul>
+
+      <button
+        onClick={() => setPage(p => Math.max(1, p - 1))}
+        disabled={page === 1}
+      >
+        Previous
+      </button>
+
+      <button
+        onClick={() => setPage(p => p + 1)}
+        disabled={isPlaceholderData || !data?.hasMore}
+      >
+        Next
+      </button>
+    </div>
+  )
+}
+```
+
+### Infinite Queries
+
+```typescript
+'use client'
+
+import { useInfiniteQuery } from '@tanstack/react-query'
+
+async function getUsers({ pageParam = 0 }) {
+  const res = await fetch(`/api/users?cursor=${pageParam}`)
+  return res.json()
+}
+
+export function InfiniteUsersList() {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteQuery({
+    queryKey: ['users'],
+    queryFn: getUsers,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextCursor
+  })
+
+  return (
+    <div>
+      {data?.pages.map((page, i) => (
+        <div key={i}>
+          {page.users.map(user => (
+            <div key={user.id}>{user.name}</div>
+          ))}
+        </div>
+      ))}
+
+      <button
+        onClick={() => fetchNextPage()}
+        disabled={!hasNextPage || isFetchingNextPage}
+      >
+        {isFetchingNextPage ? 'Loading...' : 'Load More'}
+      </button>
+    </div>
+  )
+}
+```
+
+### Dependent Queries
+
+```typescript
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
+
+export function UserPosts({ userId }: { userId: string }) {
+  // First query
+  const { data: user } = useQuery({
+    queryKey: ['users', userId],
+    queryFn: () => getUser(userId)
+  })
+
+  // Second query depends on first
+  const { data: posts } = useQuery({
+    queryKey: ['posts', user?.id],
+    queryFn: () => getPosts(user!.id),
+    enabled: !!user // Only run when user is available
+  })
+
+  return <div>{/* render posts */}</div>
+}
+```
+
+## Cache Management
+
+### Manual Cache Updates
+
+```typescript
+const queryClient = useQueryClient()
+
+// Set query data
+queryClient.setQueryData(['users', userId], newUserData)
+
+// Get query data
+const user = queryClient.getQueryData(['users', userId])
+
+// Invalidate queries
+queryClient.invalidateQueries({ queryKey: ['users'] })
+
+// Refetch queries
+queryClient.refetchQueries({ queryKey: ['users'] })
+
+// Remove queries
+queryClient.removeQueries({ queryKey: ['users'] })
+```
+
+### Stale Time vs GC Time
+
+```typescript
+const { data } = useQuery({
+  queryKey: ['users'],
+  queryFn: getUsers,
+  staleTime: 60 * 1000, // Data is fresh for 1 minute
+  gcTime: 5 * 60 * 1000 // Cache is kept for 5 minutes after last use
+})
+```
+
+## Integration with Server Actions
+
+```typescript
+'use client'
+
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAction } from 'next-safe-action/hooks'
+import { updateUserAction } from '@/lib/actions/user'
+
+export function UserProfileForm({ user }) {
+  const queryClient = useQueryClient()
+
+  // Option 1: Use next-safe-action directly
+  const { execute, isExecuting } = useAction(updateUserAction, {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', user.id] })
+    }
+  })
+
+  // Option 2: Wrap in useMutation
+  const mutation = useMutation({
+    mutationFn: updateUserAction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users', user.id] })
+    }
+  })
+
+  // ... form implementation
+}
+```
+
+## Best Practices
+
+### ✅ Do's
+- Prefetch data on server for instant loading
+- Use meaningful query keys (e.g., `['users', userId]`)
+- Invalidate queries after mutations
+- Set appropriate stale times based on data freshness needs
+- Use optimistic updates for better UX
+- Handle loading and error states
+- Use `enabled` for dependent queries
+
+### ❌ Don'ts
+- Don't use generic query keys (e.g., `['data']`)
+- Don't forget to invalidate after mutations
+- Don't set staleTime too low (causes unnecessary refetches)
+- Don't set gcTime too low (loses cache benefits)
+- Don't ignore error states
+- Don't prefetch everything (only critical data)
+
+## ISR with React Query
+
+```typescript
+// For user-specific data, set gcTime: 0
+const { data } = useQuery({
+  queryKey: ['user', userId],
+  queryFn: getUser,
+  staleTime: 0,
+  gcTime: 0 // Discard cache immediately after unmount
+})
+
+// For public data with ISR
+export const revalidate = 3600 // 1 hour
+
+async function getProducts() {
+  const res = await fetch('/api/products', {
+    next: { revalidate: 3600 }
+  })
+  return res.json()
+}
+```
+
+## DevTools
+
+```typescript
+// Install: bun add -d @tanstack/react-query-devtools
+
+// app/providers.tsx
+'use client'
+
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+
+export function Providers({ children }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  )
+}
+```
+
+## Summary
+
+TanStack Query provides:
+- ✅ Automatic caching and background refetching
+- ✅ Server-side prefetching with seamless hydration
+- ✅ Optimistic updates for instant UI feedback
+- ✅ Built-in loading, error, and success states
+- ✅ Request deduplication and cancellation
+- ✅ Powerful pagination and infinite scroll support

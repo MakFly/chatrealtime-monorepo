@@ -1,0 +1,563 @@
+---
+alwaysApply: true
+---
+## State Providers
+
+### When to Apply
+- **WHEN** custom read logic needed (not direct Doctrine fetch)
+- **WHEN** aggregating data from multiple sources
+- **WHEN** transforming Entity → Resource DTO
+- **WHEN** applying business rules on read
+
+### Requirements
+- Providers MUST implement `ProviderInterface`
+- Providers MUST be stateless
+- Providers MUST call Application Service, not Repository directly
+- Providers MUST transform Entity → Resource DTO
+
+### Pattern
+
+```php
+// src/Api/State/UserResourceProvider.php
+declare(strict_types=1);
+
+namespace App\Api\State;
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+use App\Api\Resource\UserResource;
+use App\Application\User\GetUserQuery;
+use App\Application\User\GetUsersQuery;
+use Symfony\Component\Messenger\HandleTrait;
+use Symfony\Component\Messenger\MessageBusInterface;
+
+/**
+ * @implements ProviderInterface<UserResource>
+ */
+final readonly class UserResourceProvider implements ProviderInterface
+{
+    use HandleTrait;
+
+    public function __construct(
+        private MessageBusInterface $queryBus,
+    ) {
+        $this->messageBus = $queryBus;
+    }
+
+    public function provide(Operation $operation, array $uriVariables = [], array $context = []): object|array|null
+    {
+        // GetCollection operation
+        if ($operation instanceof GetCollection) {
+            $filters = $context['filters'] ?? [];
+            $page = (int) ($filters['page'] ?? 1);
+            $limit = (int) ($filters['limit'] ?? 20);
+
+            $result = $this->handle(new GetUsersQuery($page, $limit, $filters));
+
+            return array_map(
+                fn($user) => $this->toResource($user),
+                $result['users']
+            );
+        }
+
+        // Get single item
+        if (!isset($uriVariables['id'])) {
+            return null;
+        }
+
+        $user = $this->handle(new GetUserQuery($uriVariables['id']));
+
+        return $user ? $this->toResource($user) : null;
+    }
+
+    private function toResource(object $user): UserResource
+    {
+        return new UserResource(
+            id: $user->getId()->toString(),
+            email: $user->getEmail(),
+            roles: $user->getRoles(),
+            createdAt: $user->getCreatedAt(),
+            updatedAt: $user->getUpdatedAt(),
+        );
+    }
+}
+```
+
+### Simple Provider (Direct Repository)
+
+```php
+// For simple cases without business logic
+final readonly class SimpleUserProvider implements ProviderInterface
+{
+    public function __construct(
+        private UserRepository $repository,
+    ) {}
+
+    public function provide(Operation $operation, array $uriVariables = [], array $context = []): object|array|null
+    {
+        if ($operation instanceof GetCollection) {
+            $users = $this->repository->findAll();
+            return array_map(fn($user) => $this->toResource($user), $users);
+        }
+
+        $user = $this->repository->find($uriVariables['id']);
+        return $user ? $this->toResource($user) : null;
+    }
+}
+```
+
+---
+
+## State Processors
+
+### When to Apply
+- **WHEN** custom write logic needed (POST, PUT, PATCH, DELETE)
+- **WHEN** transforming Resource DTO → Domain Entity
+- **WHEN** executing Application Commands
+- **WHEN** emitting Domain Events
+
+### Requirements
+- Processors MUST implement `ProcessorInterface`
+- Processors MUST be stateless
+- Processors MUST delegate to Application Service
+- Processors MUST NOT contain business logic
+
+### Pattern
+
+```php
+// src/Api/State/UserResourceProcessor.php
+declare(strict_types=1);
+
+namespace App\Api\State;
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProcessorInterface;
+use App\Api\Resource\UserResource;
+use App\Application\User\CreateUserCommand;
+use App\Application\User\UpdateUserCommand;
+use App\Application\User\DeleteUserCommand;
+use Symfony\Component\Messenger\HandleTrait;
+use Symfony\Component\Messenger\MessageBusInterface;
+
+/**
+ * @implements ProcessorInterface<UserResource, UserResource>
+ */
+final readonly class UserResourceProcessor implements ProcessorInterface
+{
+    use HandleTrait;
+
+    public function __construct(
+        private MessageBusInterface $commandBus,
+    ) {
+        $this->messageBus = $commandBus;
+    }
+
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
+    {
+        return match (true) {
+            $operation instanceof Post => $this->handleCreate($data),
+            $operation instanceof Put, $operation instanceof Patch => $this->handleUpdate($data, $uriVariables),
+            $operation instanceof Delete => $this->handleDelete($uriVariables),
+            default => $data,
+        };
+    }
+
+    private function handleCreate(UserResource $resource): UserResource
+    {
+        $command = new CreateUserCommand(
+            email: $resource->email,
+            password: $resource->password,
+        );
+
+        $user = $this->handle($command);
+
+        return $this->toResource($user);
+    }
+
+    private function handleUpdate(UserResource $resource, array $uriVariables): UserResource
+    {
+        $command = new UpdateUserCommand(
+            id: $uriVariables['id'],
+            email: $resource->email,
+        );
+
+        $user = $this->handle($command);
+
+        return $this->toResource($user);
+    }
+
+    private function handleDelete(array $uriVariables): void
+    {
+        $this->handle(new DeleteUserCommand($uriVariables['id']));
+    }
+
+    private function toResource(object $user): UserResource
+    {
+        return new UserResource(
+            id: $user->getId()->toString(),
+            email: $user->getEmail(),
+            roles: $user->getRoles(),
+            createdAt: $user->getCreatedAt(),
+            updatedAt: $user->getUpdatedAt(),
+        );
+    }
+}
+```
+
+---
+
+## Symfony Voters
+
+### When to Apply
+- **WHEN** implementing authorization logic
+- **WHEN** checking if user can VIEW, EDIT, DELETE resources
+- **WHEN** security depends on resource state or relationships
+
+### Requirements
+- Voters MUST extend `Voter` base class
+- Voters MUST define clear attributes (VIEW, EDIT, DELETE, etc.)
+- Voters MUST return true/false, not throw exceptions
+- Voters SHOULD be registered automatically via `#[AsTaggedItem]`
+
+### Pattern
+
+```php
+// src/Security/Voter/UserVoter.php
+declare(strict_types=1);
+
+namespace App\Security\Voter;
+
+use App\Entity\User;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Authorization\Voter\Voter;
+use Symfony\Component\Security\Core\User\UserInterface;
+
+final class UserVoter extends Voter
+{
+    public const VIEW = 'VIEW';
+    public const EDIT = 'EDIT';
+    public const DELETE = 'DELETE';
+
+    protected function supports(string $attribute, mixed $subject): bool
+    {
+        return in_array($attribute, [self::VIEW, self::EDIT, self::DELETE], true)
+            && $subject instanceof User;
+    }
+
+    protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token): bool
+    {
+        $user = $token->getUser();
+
+        if (!$user instanceof UserInterface) {
+            return false;
+        }
+
+        /** @var User $targetUser */
+        $targetUser = $subject;
+
+        return match ($attribute) {
+            self::VIEW => $this->canView($targetUser, $user),
+            self::EDIT => $this->canEdit($targetUser, $user),
+            self::DELETE => $this->canDelete($targetUser, $user),
+            default => false,
+        };
+    }
+
+    private function canView(User $targetUser, UserInterface $currentUser): bool
+    {
+        // Users can view their own profile, admins can view all
+        return $currentUser->getUserIdentifier() === $targetUser->getEmail()
+            || in_array('ROLE_ADMIN', $currentUser->getRoles(), true);
+    }
+
+    private function canEdit(User $targetUser, UserInterface $currentUser): bool
+    {
+        // Users can edit their own profile, admins can edit all
+        return $currentUser->getUserIdentifier() === $targetUser->getEmail()
+            || in_array('ROLE_ADMIN', $currentUser->getRoles(), true);
+    }
+
+    private function canDelete(User $targetUser, UserInterface $currentUser): bool
+    {
+        // Only admins can delete users (not self-deletion)
+        return in_array('ROLE_ADMIN', $currentUser->getRoles(), true)
+            && $currentUser->getUserIdentifier() !== $targetUser->getEmail();
+    }
+}
+```
+
+### Usage in ApiResource
+
+```php
+#[ApiResource(
+    operations: [
+        new Get(security: "is_granted('VIEW', object)"),
+        new Put(security: "is_granted('EDIT', object)"),
+        new Delete(security: "is_granted('DELETE', object)"),
+    ]
+)]
+```
+
+---
+
+## Serialization Groups
+
+### When to Apply
+- **WHEN** different operations need different field visibility
+- **WHEN** hiding sensitive fields (password, tokens)
+- **WHEN** nested resources need different depths
+
+### Requirements
+- Use groups for read/write separation: `entity:read`, `entity:write`
+- NEVER expose passwords in read groups
+- Use `maxDepth` to prevent deep nesting issues
+
+### Pattern
+
+```php
+#[ApiResource(
+    normalizationContext: ['groups' => ['user:read']],
+    denormalizationContext: ['groups' => ['user:write']],
+)]
+final readonly class UserResource
+{
+    #[Groups(['user:read'])]
+    public string $id;
+
+    #[Groups(['user:read', 'user:write'])]
+    public string $email;
+
+    // Password ONLY in write, never in read
+    #[Groups(['user:write'])]
+    public ?string $password;
+
+    #[Groups(['user:read'])]
+    public array $roles;
+
+    // Nested resource with maxDepth
+    #[Groups(['user:read'])]
+    #[MaxDepth(1)]
+    public ?ProfileResource $profile;
+}
+```
+
+---
+
+## Doctrine Patterns
+
+### When to Apply
+- **WHEN** writing custom repository queries
+- **WHEN** loading related entities
+- **WHEN** optimizing database access
+
+### N+1 Prevention
+
+```php
+// ❌ WRONG: N+1 query problem
+public function findUsersWithPosts(): array
+{
+    return $this->createQueryBuilder('u')
+        ->getQuery()
+        ->getResult(); // Lazy loads posts later (N queries)
+}
+
+// ✅ CORRECT: Eager load with JOIN
+public function findUsersWithPosts(): array
+{
+    return $this->createQueryBuilder('u')
+        ->leftJoin('u.posts', 'p')
+        ->addSelect('p')
+        ->getQuery()
+        ->getResult(); // Single query
+}
+```
+
+### Extra Lazy Collections
+
+```php
+// src/Entity/User.php
+#[ORM\OneToMany(targetEntity: Post::class, mappedBy: 'author', fetch: 'EXTRA_LAZY')]
+private Collection $posts;
+
+// Only counts, doesn't load all posts
+$user->getPosts()->count();
+```
+
+### QueryBuilder Patterns
+
+```php
+public function findByFilters(array $filters): array
+{
+    $qb = $this->createQueryBuilder('u');
+
+    if (isset($filters['status'])) {
+        $qb->andWhere('u.status = :status')
+           ->setParameter('status', $filters['status']);
+    }
+
+    if (isset($filters['created_after'])) {
+        $qb->andWhere('u.createdAt >= :date')
+           ->setParameter('date', new \DateTimeImmutable($filters['created_after']));
+    }
+
+    return $qb->getQuery()->getResult();
+}
+```
+
+---
+
+## Messenger Async Events
+
+### When to Apply
+- **WHEN** domain events need side effects (emails, notifications)
+- **WHEN** processing can be deferred (non-blocking)
+- **WHEN** cross-bounded-context communication needed
+
+### Pattern
+
+```php
+// src/Domain/User/Event/UserCreatedEvent.php
+final readonly class UserCreatedEvent
+{
+    public function __construct(
+        public string $userId,
+        public string $email,
+        public \DateTimeImmutable $occurredAt,
+    ) {}
+}
+
+// src/Application/User/Handler/SendWelcomeEmailHandler.php
+#[AsMessageHandler]
+final readonly class SendWelcomeEmailHandler
+{
+    public function __construct(
+        private MailerInterface $mailer,
+    ) {}
+
+    public function __invoke(UserCreatedEvent $event): void
+    {
+        $email = (new Email())
+            ->to($event->email)
+            ->subject('Welcome!')
+            ->html('<p>Welcome to our platform!</p>');
+
+        $this->mailer->send($email);
+    }
+}
+
+// Dispatch in Application Service
+public function createUser(CreateUserCommand $command): User
+{
+    $user = new User($command->email, $command->password);
+    $this->repository->save($user);
+
+    $this->eventBus->dispatch(new UserCreatedEvent(
+        userId: $user->getId()->toString(),
+        email: $user->getEmail(),
+        occurredAt: new \DateTimeImmutable(),
+    ));
+
+    return $user;
+}
+```
+
+---
+
+## HTTP Cache
+
+### When to Apply
+- **WHEN** GET endpoints return cacheable data
+- **WHEN** resources have predictable modification times
+- **WHEN** reducing database load is priority
+
+### ETag Pattern
+
+```php
+#[ApiResource(
+    operations: [
+        new Get(
+            cacheHeaders: [
+                'max_age' => 3600,
+                'shared_max_age' => 3600,
+                'vary' => ['Accept', 'Authorization'],
+            ]
+        ),
+    ]
+)]
+```
+
+### Last-Modified Pattern
+
+```php
+// In custom Provider
+public function provide(Operation $operation, array $uriVariables = [], array $context = []): object|array|null
+{
+    $user = $this->repository->find($uriVariables['id']);
+
+    if ($user && $user->getUpdatedAt()) {
+        $response = $context['response'] ?? null;
+        if ($response instanceof Response) {
+            $response->setLastModified($user->getUpdatedAt());
+            $response->setPublic();
+            $response->setMaxAge(3600);
+        }
+    }
+
+    return $this->toResource($user);
+}
+```
+
+---
+
+## API Platform Filters
+
+### When to Apply
+- **WHEN** list endpoints need filtering
+- **WHEN** users need to search, sort, filter results
+- **WHEN** implementing `/api/users?status=active&sort=-createdAt`
+
+### Pattern
+
+```php
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
+use ApiPlatform\Doctrine\Orm\Filter\RangeFilter;
+use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
+use ApiPlatform\Metadata\ApiFilter;
+
+#[ApiResource]
+#[ApiFilter(SearchFilter::class, properties: [
+    'email' => 'partial',
+    'status' => 'exact',
+    'roles' => 'exact',
+])]
+#[ApiFilter(OrderFilter::class, properties: [
+    'createdAt',
+    'email',
+])]
+#[ApiFilter(DateFilter::class, properties: ['createdAt'])]
+#[ApiFilter(RangeFilter::class, properties: ['createdAt'])]
+final readonly class UserResource
+{
+    // ...
+}
+```
+
+### Usage Examples
+
+```
+# Search email containing "john"
+GET /api/users?email=john
+
+# Filter by exact status
+GET /api/users?status=active
+
+# Sort by created_at descending
+GET /api/users?order[createdAt]=desc
+
+# Range filter (created after date)
+GET /api/users?createdAt[after]=2024-01-01
+
+# Combine filters
+GET /api/users?status=active&order[createdAt]=desc&page=2
+```

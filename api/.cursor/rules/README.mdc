@@ -1,0 +1,385 @@
+# Cursor Rules for Symfony Chat Realtime API
+
+This directory contains comprehensive Cursor IDE rules for building a robust, production-ready Symfony API with **TDD, SOLID principles, and Clean Architecture**.
+
+---
+
+## 🎯 Core Principles (AI-DD Framework)
+
+This project follows **AI-DD (AI-Data-Driven Development)** with strict enforcement of:
+
+1. **TDD First**: Always write tests before code (Red → Green → Refactor)
+2. **SOLID Principles**: Apply all 5 principles to every class
+3. **Interfaces**: Use interfaces for all injected dependencies
+4. **Slim Controllers**: Controllers < 50 lines, logic in services
+5. **Clean Architecture**: Controller → Service → Repository → Entity
+
+> **⚠️ MANDATORY**: Read `AI-DD/README.md` and `AGENTS.md` before writing any code.
+
+---
+
+## 📁 Rule Files
+
+### symfony-tdd-solid.md
+**Primary rule file** - Enforces TDD workflow and SOLID principles:
+- ✅ Test-first workflow (RED → GREEN → REFACTOR)
+- ✅ SOLID principles for every class
+- ✅ Interface usage guidelines
+- ✅ Controller limits (< 50 lines)
+- ✅ Anti-patterns to avoid
+- ✅ Code quality standards
+- ✅ Refactoring patterns
+
+**Status**: ✅ Active and enforced
+
+### postman-api-sync.md
+**API Documentation rule** - Enforces Postman collection updates:
+- ✅ Update collection after ANY API modification
+- ✅ Sync on new/modified/removed endpoints
+- ✅ Update tests and environment variables
+- ✅ Documentation and examples required
+- ✅ Quality checklist before commit
+
+**Status**: ✅ Active and enforced
+
+### 07-never-use-empty.mdc
+**PHP Code Quality rule** - Bans `empty()` function usage:
+- ❌ Never use `empty()` - ambiguous and error-prone
+- ✅ Use explicit type checks: `\strlen($s) === 0`, `\count($a) === 0`
+- ✅ Explicit null checks: `$var === null`
+- ✅ Array key checks: `\array_key_exists('key', $array)`
+- ✅ Clear intent and type safety
+- ✅ Catches typos and undefined variables
+
+**Status**: ✅ Active and always enforced on all PHP files
+
+**Reference**: [Benjamin Eberlei - Never use empty()](https://www.beberlei.de/post/when_to_use_empty_in_php_i_say_never)
+
+### 01-common-api.mdc (537 lines) - Optional
+Framework-agnostic API patterns:
+- **RFC7807 Problem Details**: Standardized error responses with trace_id
+- **Pagination**: Offset and cursor pagination patterns
+- **Filtering and Sorting**: Query parameter standards
+- **OpenAPI Documentation**: Generation and validation
+- **CORS and Security Headers**: Cross-origin configuration
+- **Structured Logging**: JSON logging with correlation IDs
+- **Health Endpoints**: `/healthz` and `/readyz` patterns
+
+**Status**: ⏸️ Reference only (not enforced by default)
+
+### 02-symfony-api-platform.mdc (701 lines) - Optional
+Symfony + API Platform specific patterns:
+- **ApiResource DTOs**: Resource classes with attributes
+- **State Providers**: Custom read operations (GET, GetCollection)
+- **State Processors**: Custom write operations (POST, PUT, DELETE)
+- **Symfony Voters**: Authorization patterns with `is_granted()`
+- **Serialization Groups**: Read/write separation (`entity:read`, `entity:write`)
+- **Doctrine Patterns**: N+1 prevention, QueryBuilder, EXTRA_LAZY
+- **Messenger Async Events**: Domain events with async handlers
+- **HTTP Cache**: ETag, Last-Modified, Cache-Control
+- **API Platform Filters**: SearchFilter, OrderFilter, DateFilter, RangeFilter
+
+**Status**: ⏸️ Reference only (Advanced patterns)
+
+### 03-laravel-api.mdc (749 lines) - Not Used
+Laravel API patterns (included for reference but not used in this Symfony project).
+
+**Status**: ❌ Inactive (Laravel-specific)
+
+### 04-code-quality.mdc (729 lines) - Optional
+PHP quality standards and tooling:
+- **PHP 8.3 Standards**: `strict_types`, typed properties, readonly, enums
+- **PHPStan Level 9**: Maximum static analysis with baseline
+- **Code Style**: PHP CS Fixer (Symfony) configs
+- **Pest Testing**: Unit, integration, API tests with descriptive syntax
+- **Coverage Requirements**: Domain ≥95%, Application ≥90%
+- **Composer Scripts**: `test`, `analyse`, `fix`, `check`, `audit`, `ci`
+- **CI Pipeline**: GitHub Actions and GitLab CI configurations
+
+**Status**: ⏸️ Reference only (Overlaps with AI-DD)
+
+### 05-refactoring-actions.mdc (735 lines) - Optional
+Step-by-step refactoring workflows:
+- **Fat Controller → Hexagonal**: 8-step workflow with before/after examples
+- **Entity Exposure → DTO Migration**: Protect ORM entities from API
+- **N+1 Query Elimination**: Eager loading patterns and detection
+- **Inline Validation → FormRequest/DTO**: Extract validation logic
+- **Direct ORM → Repository Pattern**: Decouple persistence
+- **Manual Errors → RFC7807**: Standardize error responses
+- **Missing Tests → Pest Suite**: Test scaffolding workflow
+- **Blocking Code → Async Messenger**: Move side effects to queues
+
+**Status**: ⏸️ Reference only (Use AI-DD/symfony/best-practices.md instead)
+
+### 06-templates.mdc (929 lines) - Optional
+Complete file scaffolds with placeholder variables for Symfony:
+- ApiResource DTO with serialization groups
+- State Provider (custom read logic)
+- State Processor (custom write logic)
+- Symfony Voter (authorization)
+- Application Service (use case handler)
+- Domain Entity (with Doctrine mapping)
+- Domain Repository Interface
+- Doctrine Repository Implementation
+- Pest API Test (HTTP assertions)
+
+**Status**: ⏸️ Reference only
+
+---
+
+## 🏗️ Primary Architecture (AI-DD Framework)
+
+### Documentation Hierarchy
+
+```
+1. AI-DD/ (PRIMARY - Always follow)
+   ├── README.md
+   ├── interfaces/when-to-use.md ⭐ CRITICAL
+   ├── tdd/test-first.md ⭐ CRITICAL
+   ├── solid/README.md
+   └── symfony/best-practices.md
+
+2. .cursor/rules/
+   ├── symfony-tdd-solid.md ⭐ PRIMARY ENFORCEMENT
+   └── postman-api-sync.md ⭐ API DOCUMENTATION ENFORCEMENT
+
+3. CLAUDE.md (Project instructions)
+4. AGENTS.md ⭐ AI RULES (Mandatory for AI assistants)
+
+5. .cursor/rules/*.mdc (Optional reference)
+```
+
+### When to Use Each Resource
+
+| Situation | Read This | Why |
+|-----------|-----------|-----|
+| **Starting new feature** | AI-DD/README.md + tdd/test-first.md | TDD workflow |
+| **Need interface?** | AI-DD/interfaces/when-to-use.md | Decision matrix |
+| **Refactoring code** | AI-DD/solid/README.md | SOLID examples |
+| **Service structure** | AI-DD/symfony/best-practices.md | Architecture patterns |
+| **AI code generation** | AGENTS.md + .cursor/rules/symfony-tdd-solid.md | Strict enforcement |
+| **Modified API endpoint** | .cursor/rules/postman-api-sync.md | Update Postman collection |
+| **Advanced API patterns** | .cursor/rules/02-symfony-api-platform.mdc | Optional reference |
+
+---
+
+## 🎯 How to Use
+
+### In Cursor IDE
+
+Cursor automatically loads:
+1. ✅ `.cursor/rules/symfony-tdd-solid.md` (PRIMARY)
+2. ⏸️ Other `.mdc` files (optional reference)
+
+### Workflow for New Features
+
+```
+1. Read AI-DD documentation (if first time)
+   → AI-DD/README.md
+   → AI-DD/interfaces/when-to-use.md
+   → AI-DD/tdd/test-first.md
+
+2. Write FAILING test first (RED)
+   → tests/Unit/ or tests/Feature/
+
+3. Write minimum code to pass (GREEN)
+   → src/Service/ (with interface)
+   → src/Controller/ (< 50 lines)
+
+4. Refactor while keeping tests green (REFACTOR)
+   → Apply SOLID principles
+   → Extract to methods/classes
+
+5. Verify quality
+   → make test (all tests pass)
+   → make tools (PHPStan clean)
+   → Check coverage > 80%
+```
+
+### Using AI Assistants (Claude, Cursor AI)
+
+**Before generating ANY code**, AI MUST:
+1. Read `AGENTS.md`
+2. Read `.cursor/rules/symfony-tdd-solid.md`
+3. Follow TDD workflow strictly
+4. Use interfaces for all dependencies
+5. Keep controllers < 50 lines
+
+**Ask AI**:
+- "Generate UserService following AI-DD principles"
+- "Refactor this controller to be < 50 lines with TDD"
+- "Create tests first for this feature"
+
+---
+
+## ✅ Pre-Commit Checklist
+
+Before committing, verify:
+
+- [ ] **Tests written FIRST** (TDD)
+- [ ] All tests pass (`make test`)
+- [ ] Code coverage > 80%
+- [ ] PHPStan clean (`make tools`)
+- [ ] SOLID principles respected
+- [ ] Interfaces for dependencies
+- [ ] Controllers < 50 lines
+- [ ] No code duplication
+- [ ] Explicit naming (no `$data`, `$temp`)
+
+---
+
+## 📊 Project Statistics
+
+### Current Implementation
+
+```
+✅ Authentication System (JWT + Google SSO)
+- AuthController: 199 lines (needs refactoring to < 50)
+- GoogleController: 132 lines (needs refactoring to < 50)
+- UserController: 137 lines (needs refactoring to < 50)
+- GoogleUserProvisioner: 118 lines ✅
+- EventListener: 107 lines ✅
+
+✅ Testing Infrastructure (PEST PHP)
+- 30/30 tests passing (100%)
+- 119 assertions
+- Feature tests: Auth endpoints
+
+⏳ Pending Improvements
+- Refactor controllers to use service layer
+- Add unit tests for services
+- Increase coverage to 80%+
+```
+
+### AI-DD Files
+
+```
+AI-DD/
+├── README.md (116 lines)
+├── interfaces/when-to-use.md (650 lines) ⭐
+├── tdd/test-first.md (420 lines) ⭐
+├── solid/README.md (480 lines)
+└── symfony/best-practices.md (620 lines)
+
+Total: 2,286 lines of guidance
+```
+
+---
+
+## 🔗 Integration Points
+
+These rules work alongside:
+
+| Resource | Purpose | Priority |
+|----------|---------|----------|
+| **AI-DD/** | Core development principles | 🔴 HIGHEST |
+| **AGENTS.md** | AI assistant rules | 🔴 HIGHEST |
+| **.cursor/rules/symfony-tdd-solid.md** | Primary enforcement | 🔴 HIGHEST |
+| **CLAUDE.md** | Project overview | 🟡 HIGH |
+| **OpenSpec workflow** | Change proposals | 🟢 MEDIUM |
+| **.cursor/rules/*.mdc** | Optional reference | ⚪ LOW |
+| **SuperClaude** (`~/.claude/`) | Global instructions | ⚪ LOW |
+
+---
+
+## 🚫 Common Mistakes to Avoid
+
+### ❌ Writing code before tests
+```php
+// ❌ WRONG
+class UserService { /* implementation */ }
+// Then write tests later
+
+// ✅ CORRECT
+class UserServiceTest extends TestCase
+{
+    public function testRegisterCreatesUser(): void { }
+}
+// Test FIRST, then implement
+```
+
+### ❌ Fat controllers
+```php
+// ❌ WRONG: 150 lines of logic
+public function create(Request $request, EntityManager $em): Response
+{
+    // ... 150 lines of business logic
+}
+
+// ✅ CORRECT: < 50 lines, delegates to service
+public function create(Request $request, UserServiceInterface $service): Response
+{
+    $user = $service->register($request->get('email'), $request->get('password'));
+    return $this->json(['id' => $user->getId()], 201);
+}
+```
+
+### ❌ Concrete dependencies
+```php
+// ❌ WRONG
+public function __construct(
+    private StripePaymentGateway $gateway  // Concrete class
+) {}
+
+// ✅ CORRECT
+public function __construct(
+    private PaymentGatewayInterface $gateway  // Interface
+) {}
+```
+
+---
+
+## 📝 Next Steps
+
+1. **Read core documentation**:
+   - `AI-DD/README.md`
+   - `AI-DD/interfaces/when-to-use.md`
+   - `AI-DD/tdd/test-first.md`
+
+2. **Refactor existing controllers**:
+   - Extract logic to services
+   - Add interfaces
+   - Write tests first
+
+3. **Increase test coverage**:
+   - Unit tests for services
+   - Integration tests for repositories
+   - Architecture tests for SOLID
+
+4. **Apply to new features**:
+   - Follow TDD workflow
+   - Use AI-DD templates
+   - Keep controllers slim
+
+---
+
+## 🎓 Learning Resources
+
+**Essential Reading** (in order):
+1. `AI-DD/README.md` - Start here
+2. `AI-DD/interfaces/when-to-use.md` - When to use interfaces
+3. `AI-DD/tdd/test-first.md` - TDD workflow
+4. `AI-DD/solid/README.md` - SOLID principles
+5. `AI-DD/symfony/best-practices.md` - Symfony patterns
+
+**Books**:
+- Clean Code - Robert C. Martin
+- Clean Architecture - Robert C. Martin
+- Test-Driven Development - Kent Beck
+
+**Online**:
+- [Symfony Best Practices](https://symfony.com/doc/current/best_practices.html)
+- [PEST PHP Documentation](https://pestphp.com/)
+- [PHPStan Documentation](https://phpstan.org/)
+
+---
+
+## 📄 License
+
+These rules follow the same license as the parent project.
+
+---
+
+**Version**: 2.0 (Updated with AI-DD Framework)
+**Last Updated**: 2025-10-19
+**Status**: ✅ Active Development with TDD + SOLID enforcement

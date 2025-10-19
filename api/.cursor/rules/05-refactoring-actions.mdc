@@ -1,0 +1,735 @@
+# Refactoring Actions and Workflows
+
+This rule file defines step-by-step refactoring workflows for improving code quality and architecture. Follows specifications from `openspec/specs/development-workflow/`.
+
+## Table of Contents
+- [Fat Controller to Hexagonal](#fat-controller-to-hexagonal)
+- [Entity Exposure to DTO Migration](#entity-exposure-to-dto-migration)
+- [N+1 Query Elimination](#n1-query-elimination)
+- [Inline Validation to FormRequest/DTO](#inline-validation-to-formrequestdto)
+- [Direct ORM to Repository Pattern](#direct-orm-to-repository-pattern)
+- [Manual Errors to RFC7807](#manual-errors-to-rfc7807)
+- [Missing Tests to Pest Suite](#missing-tests-to-pest-suite)
+- [Blocking Code to Async Messenger](#blocking-code-to-async-messenger)
+
+---
+
+## Fat Controller to Hexagonal
+
+### Detection Criteria
+- Controller method >80 lines
+- Contains inline database queries (Doctrine QueryBuilder, Eloquent)
+- Contains validation logic inline
+- Contains business logic (calculations, state changes)
+- Returns ORM entities directly
+
+### Problem Example
+
+```php
+// ❌ WRONG: Fat controller with everything
+public function store(Request $request): JsonResponse
+{
+    // Inline validation
+    if (!filter_var($request->get('email'), FILTER_VALIDATE_EMAIL)) {
+        return new JsonResponse(['error' => 'Invalid email'], 400);
+    }
+
+    // Direct database access
+    $existingUser = $this->entityManager
+        ->getRepository(User::class)
+        ->findOneBy(['email' => $request->get('email')]);
+
+    if ($existingUser) {
+        return new JsonResponse(['error' => 'Email already exists'], 400);
+    }
+
+    // Business logic
+    $user = new User();
+    $user->setEmail($request->get('email'));
+    $user->setPassword(password_hash($request->get('password'), PASSWORD_BCRYPT));
+    $user->setRoles(['ROLE_USER']);
+    $user->setCreatedAt(new \DateTimeImmutable());
+
+    $this->entityManager->persist($user);
+    $this->entityManager->flush();
+
+    // Send email (blocking)
+    $this->mailer->send(new WelcomeEmail($user));
+
+    // Return entity directly
+    return new JsonResponse($user, 201);
+}
+```
+
+### Refactoring Workflow
+
+#### Step 1: Extract Input DTO/FormRequest
+
+**Symfony:**
+
+```php
+// src/Api/Resource/CreateUserRequest.php
+#[ApiResource(operations: [new Post(input: CreateUserRequest::class)])]
+final readonly class CreateUserRequest
+{
+    public function __construct(
+        #[Assert\NotBlank]
+        #[Assert\Email]
+        public string $email,
+
+        #[Assert\NotBlank]
+        #[Assert\Length(min: 8)]
+        public string $password,
+    ) {}
+}
+```
+
+**Laravel:**
+
+```php
+// app/Http/Requests/User/StoreUserRequest.php
+final class StoreUserRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->can('create', User::class) ?? false;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'email' => ['required', 'email', 'unique:users,email', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'max:255'],
+        ];
+    }
+}
+```
+
+#### Step 2: Create Application Service
+
+```php
+// src/Application/User/CreateUserService.php (Symfony)
+// app/Services/User/CreateUserService.php (Laravel)
+declare(strict_types=1);
+
+namespace App\Application\User;
+
+use App\Domain\User\User;
+use App\Domain\User\UserRepository;
+use App\Domain\User\Event\UserCreatedEvent;
+use Symfony\Component\Messenger\MessageBusInterface;
+
+final readonly class CreateUserService
+{
+    public function __construct(
+        private UserRepository $repository,
+        private MessageBusInterface $eventBus,
+    ) {}
+
+    public function execute(string $email, string $password): User
+    {
+        // Check uniqueness
+        if ($this->repository->findByEmail($email)) {
+            throw new UserAlreadyExistsException($email);
+        }
+
+        // Create user
+        $user = User::create($email, $password);
+
+        // Persist
+        $this->repository->save($user);
+
+        // Emit event (async)
+        $this->eventBus->dispatch(new UserCreatedEvent($user->getId()));
+
+        return $user;
+    }
+}
+```
+
+#### Step 3: Create Domain Entity
+
+```php
+// src/Domain/User/User.php
+declare(strict_types=1);
+
+namespace App\Domain\User;
+
+final class User
+{
+    private function __construct(
+        private UserId $id,
+        private Email $email,
+        private HashedPassword $password,
+        private array $roles,
+        private \DateTimeImmutable $createdAt,
+    ) {}
+
+    public static function create(string $email, string $password): self
+    {
+        return new self(
+            id: UserId::generate(),
+            email: new Email($email),
+            password: HashedPassword::fromPlain($password),
+            roles: ['ROLE_USER'],
+            createdAt: new \DateTimeImmutable(),
+        );
+    }
+
+    // Getters...
+}
+```
+
+#### Step 4: Create Repository Interface (Domain)
+
+```php
+// src/Domain/User/UserRepository.php
+declare(strict_types=1);
+
+namespace App\Domain\User;
+
+interface UserRepository
+{
+    public function save(User $user): void;
+    public function findById(UserId $id): ?User;
+    public function findByEmail(string $email): ?User;
+}
+```
+
+#### Step 5: Create Repository Implementation (Infrastructure)
+
+```php
+// src/Infrastructure/Persistence/Doctrine/DoctrineUserRepository.php (Symfony)
+declare(strict_types=1);
+
+namespace App\Infrastructure\Persistence\Doctrine;
+
+use App\Domain\User\User;
+use App\Domain\User\UserRepository;
+use App\Domain\User\UserId;
+use Doctrine\ORM\EntityManagerInterface;
+
+final readonly class DoctrineUserRepository implements UserRepository
+{
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+    ) {}
+
+    public function save(User $user): void
+    {
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+    }
+
+    public function findById(UserId $id): ?User
+    {
+        return $this->entityManager->find(User::class, $id);
+    }
+
+    public function findByEmail(string $email): ?User
+    {
+        return $this->entityManager
+            ->getRepository(User::class)
+            ->findOneBy(['email' => $email]);
+    }
+}
+```
+
+**Laravel:**
+
+```php
+// app/Repositories/UserRepository.php
+final class UserRepository
+{
+    public function save(User $user): void
+    {
+        $user->save();
+    }
+
+    public function findByEmail(string $email): ?User
+    {
+        return User::where('email', $email)->first();
+    }
+}
+```
+
+#### Step 6: Transform Response to DTO/Resource
+
+**Symfony:**
+
+```php
+// src/Api/Resource/UserResource.php
+#[ApiResource]
+final readonly class UserResource
+{
+    public function __construct(
+        #[Groups(['user:read'])]
+        public string $id,
+        #[Groups(['user:read'])]
+        public string $email,
+        #[Groups(['user:read'])]
+        public \DateTimeImmutable $createdAt,
+    ) {}
+
+    public static function fromDomain(User $user): self
+    {
+        return new self(
+            id: $user->getId()->toString(),
+            email: $user->getEmail()->toString(),
+            createdAt: $user->getCreatedAt(),
+        );
+    }
+}
+```
+
+**Laravel:**
+
+```php
+// app/Http/Resources/UserResource.php
+final class UserResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'email' => $this->email,
+            'created_at' => $this->created_at?->toIso8601String(),
+        ];
+    }
+}
+```
+
+#### Step 7: Slim Controller
+
+**Symfony (with State Processor):**
+
+```php
+// Handled by State Processor - no controller needed
+// src/Api/State/UserResourceProcessor.php
+final readonly class UserResourceProcessor implements ProcessorInterface
+{
+    public function __construct(
+        private CreateUserService $service,
+    ) {}
+
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
+    {
+        if ($operation instanceof Post) {
+            $user = $this->service->execute(
+                email: $data->email,
+                password: $data->password,
+            );
+
+            return UserResource::fromDomain($user);
+        }
+
+        return $data;
+    }
+}
+```
+
+**Laravel:**
+
+```php
+// app/Http/Controllers/Api/V1/User/StoreUserController.php
+final class StoreUserController extends Controller
+{
+    public function __construct(
+        private readonly CreateUserService $service
+    ) {}
+
+    public function __invoke(StoreUserRequest $request): JsonResponse
+    {
+        $user = $this->service->execute(
+            email: $request->validated('email'),
+            password: $request->validated('password'),
+        );
+
+        return UserResource::make($user)
+            ->response()
+            ->setStatusCode(201);
+    }
+}
+```
+
+#### Step 8: Add Tests
+
+```php
+// tests/Api/UserApiTest.php
+it('creates new user', function () {
+    postJson('/api/users', [
+        'email' => 'test@example.com',
+        'password' => 'SecurePass123',
+    ])
+        ->assertCreated()
+        ->assertJson([
+            'email' => 'test@example.com',
+        ]);
+});
+
+// tests/Unit/Application/User/CreateUserServiceTest.php
+it('creates user successfully', function () {
+    $repository = Mockery::mock(UserRepository::class);
+    $repository->shouldReceive('findByEmail')->andReturn(null);
+    $repository->shouldReceive('save')->once();
+
+    $eventBus = Mockery::mock(MessageBusInterface::class);
+    $eventBus->shouldReceive('dispatch')->once();
+
+    $service = new CreateUserService($repository, $eventBus);
+
+    $user = $service->execute('test@example.com', 'password');
+
+    expect($user)->toBeInstanceOf(User::class);
+});
+```
+
+---
+
+## Entity Exposure to DTO Migration
+
+### Detection Criteria
+- API endpoints return Doctrine/Eloquent entities directly
+- JSON serialization configured on entities
+- Risk of lazy loading triggering N+1 queries
+- Sensitive fields potentially exposed
+
+### Workflow
+
+#### Step 1: Create Output DTO/Resource
+
+```php
+// See Step 6 in Fat Controller refactoring
+```
+
+#### Step 2: Update Controller/Processor
+
+```php
+// Replace:
+return new JsonResponse($user, 200);
+
+// With:
+return new JsonResponse(UserResource::fromDomain($user), 200);
+
+// Or in Laravel:
+return UserResource::make($user);
+```
+
+#### Step 3: Remove Serialization Config from Entity
+
+```php
+// Remove:
+#[Groups(['user:read'])]
+// from Doctrine entities
+
+// Keep only:
+#[ORM\Entity]
+#[ORM\Table(name: 'users')]
+```
+
+#### Step 4: Test API Response Shape
+
+```php
+it('returns user with correct structure', function () {
+    $response = getJson('/api/users/1');
+
+    $response->assertOk()
+        ->assertJsonStructure([
+            'id',
+            'email',
+            'created_at',
+        ])
+        ->assertJsonMissing([
+            'password', // Never expose
+            'password_hash',
+        ]);
+});
+```
+
+---
+
+## N+1 Query Elimination
+
+### Detection Criteria
+- Multiple database queries in loops
+- Accessing relationships without eager loading
+- Performance degradation with more data
+
+### Detection Example
+
+```php
+// Enable query logging
+DB::enableQueryLog(); // Laravel
+$logger = new DebugStack(); // Symfony
+
+$users = User::all(); // 1 query
+foreach ($users as $user) {
+    echo $user->posts->count(); // N queries (one per user)
+}
+
+$queries = DB::getQueryLog();
+dd(count($queries)); // Should be 1 or 2, not N+1
+```
+
+### Fix Workflow
+
+#### Step 1: Identify Relationships
+
+```php
+// Problem: Lazy loading posts
+$users = User::all();
+foreach ($users as $user) {
+    echo $user->posts->count(); // Triggers query each iteration
+}
+```
+
+#### Step 2: Add Eager Loading
+
+**Symfony (Doctrine):**
+
+```php
+// In Repository
+public function findAllWithPosts(): array
+{
+    return $this->createQueryBuilder('u')
+        ->leftJoin('u.posts', 'p')
+        ->addSelect('p')
+        ->getQuery()
+        ->getResult();
+}
+
+// Or use EXTRA_LAZY for counts only
+#[ORM\OneToMany(targetEntity: Post::class, mappedBy: 'author', fetch: 'EXTRA_LAZY')]
+private Collection $posts;
+
+$user->getPosts()->count(); // Single COUNT query, doesn't load all posts
+```
+
+**Laravel:**
+
+```php
+// Fix with eager loading
+$users = User::with('posts')->get(); // 2 queries total (users + posts)
+
+// Or just count
+$users = User::withCount('posts')->get(); // 2 queries, no post data loaded
+foreach ($users as $user) {
+    echo $user->posts_count; // No additional query
+}
+```
+
+#### Step 3: Profile Before/After
+
+```php
+DB::enableQueryLog();
+$users = User::with('posts')->get();
+$queries = DB::getQueryLog();
+
+expect(count($queries))->toBe(2, 'Expected 2 queries (users + posts), got ' . count($queries));
+```
+
+#### Step 4: Add Test
+
+```php
+it('loads users without N+1', function () {
+    User::factory()->count(10)->has(Post::factory()->count(5))->create();
+
+    DB::enableQueryLog();
+
+    $users = User::with('posts')->get();
+
+    $queryCount = count(DB::getQueryLog());
+
+    expect($queryCount)->toBeLessThanOrEqual(2);
+});
+```
+
+---
+
+## Inline Validation to FormRequest/DTO
+
+### Detection Criteria
+- Validation logic in controller methods
+- Manual `if` checks for required fields
+- Inconsistent error responses
+
+### Workflow
+
+See **Step 1** in Fat Controller refactoring.
+
+---
+
+## Direct ORM to Repository Pattern
+
+### Detection Criteria
+- EntityManager/DB facade used directly in controllers
+- QueryBuilder logic scattered across codebase
+- Hard to test due to tight coupling
+
+### Workflow
+
+See **Steps 4-5** in Fat Controller refactoring.
+
+---
+
+## Manual Errors to RFC7807
+
+### Detection Criteria
+- Custom JSON error responses
+- Inconsistent error formats
+- Missing trace_id for correlation
+
+### Workflow
+
+```php
+// Before:
+return new JsonResponse(['error' => 'User not found'], 404);
+
+// After:
+return response()->problem(
+    status: 404,
+    title: 'Not Found',
+    detail: 'User with ID ' . $id . ' not found'
+);
+```
+
+See `01-common-api.md` for full implementation.
+
+---
+
+## Missing Tests to Pest Suite
+
+### Workflow
+
+#### Step 1: Identify Untested Code
+
+```bash
+vendor/bin/pest --coverage
+```
+
+#### Step 2: Create Test File
+
+```php
+// tests/Unit/Domain/User/UserTest.php
+<?php
+
+declare(strict_types=1);
+
+use App\Domain\User\User;
+
+describe('User', function () {
+    it('can be created', function () {
+        $user = User::create('test@example.com', 'password');
+
+        expect($user)->toBeInstanceOf(User::class)
+            ->and($user->getEmail())->toBe('test@example.com');
+    });
+});
+```
+
+#### Step 3: Run Tests
+
+```bash
+vendor/bin/pest tests/Unit/Domain/User/UserTest.php
+```
+
+---
+
+## Blocking Code to Async Messenger
+
+### Detection Criteria
+- Email sending blocks request
+- External API calls block response
+- Heavy computations delay response
+
+### Workflow
+
+#### Step 1: Extract Event
+
+```php
+// src/Domain/User/Event/UserCreatedEvent.php
+final readonly class UserCreatedEvent
+{
+    public function __construct(
+        public string $userId,
+        public \DateTimeImmutable $occurredAt,
+    ) {}
+}
+```
+
+#### Step 2: Dispatch Event
+
+```php
+// In Service
+$this->repository->save($user);
+
+$this->eventBus->dispatch(new UserCreatedEvent(
+    userId: $user->getId()->toString(),
+    occurredAt: new \DateTimeImmutable(),
+));
+
+return $user; // Immediate response
+```
+
+#### Step 3: Create Async Handler
+
+```php
+// src/Application/User/Handler/SendWelcomeEmailHandler.php
+#[AsMessageHandler]
+final readonly class SendWelcomeEmailHandler
+{
+    public function __construct(
+        private MailerInterface $mailer,
+        private UserRepository $repository,
+    ) {}
+
+    public function __invoke(UserCreatedEvent $event): void
+    {
+        $user = $this->repository->findById(new UserId($event->userId));
+
+        if (!$user) {
+            return;
+        }
+
+        $email = (new Email())
+            ->to($user->getEmail())
+            ->subject('Welcome!')
+            ->html('<p>Welcome!</p>');
+
+        $this->mailer->send($email);
+    }
+}
+```
+
+#### Step 4: Configure Async Transport
+
+```yaml
+# config/packages/messenger.yaml
+framework:
+    messenger:
+        transports:
+            async: '%env(MESSENGER_TRANSPORT_DSN)%'
+        routing:
+            'App\Domain\User\Event\UserCreatedEvent': async
+```
+
+**Laravel:**
+
+```php
+// app/Jobs/SendWelcomeEmailJob.php
+final class SendWelcomeEmailJob implements ShouldQueue
+{
+    public function __construct(
+        private readonly string $userId
+    ) {}
+
+    public function handle(UserRepository $repository, Mailer $mailer): void
+    {
+        $user = $repository->find($this->userId);
+        // Send email...
+    }
+}
+
+// Dispatch:
+SendWelcomeEmailJob::dispatch($user->id);
+```

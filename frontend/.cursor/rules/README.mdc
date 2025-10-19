@@ -1,0 +1,714 @@
+# Frontend Cursor Rules - Next.js 15 Chat Realtime Application
+
+## Overview
+
+This directory contains organized Cursor AI rules for the Next.js 15 frontend application. These rules provide comprehensive guidance for AI agents and developers working with modern Next.js, React 19, TypeScript, and the complete frontend stack.
+
+## 📁 File Organization
+
+| File | Category | Application Strategy | Target Files |
+|------|----------|---------------------|--------------|
+| **00-ai-dd-integration.mdc** | 🎯 AI-DD Docs | ✅ **Always Apply** | All `.{ts,tsx}` files |
+| **01-nextjs-core.mdc** | Core Principles | ✅ **Always Apply** | `app/`, `components/`, `lib/` |
+| **02-next-safe-action.mdc** | Server Actions | 🎯 **Smart Apply** | `lib/actions/`, `*action*.{ts,tsx}` |
+| **03-tanstack-query.mdc** | State Management | 🎯 **Smart Apply** | `lib/queries/`, `*query*.{ts,tsx}`, pages |
+| **04-shadcn-ui.mdc** | UI Components | ✅ **Always Apply** | `components/`, `app/` |
+| **05-react-hook-form.mdc** | Form Management | 🎯 **Smart Apply** | `*form*.{ts,tsx}` |
+| **06-performance.mdc** | Optimization | ✅ **Always Apply** | `app/`, `components/`, `lib/` |
+| **07-authentication.mdc** | Authentication | 🎯 **Smart Apply** | `lib/auth*`, `(auth)/`, auth-related files |
+
+## 📋 Application Strategies Explained
+
+### ✅ Always Apply (`alwaysApply: true`)
+**Rules that should be enforced on ALL relevant files:**
+- `00-ai-dd-integration.mdc` - Critical architecture and documentation guidance
+- `01-nextjs-core.mdc` - Server-first principles apply everywhere
+- `04-shadcn-ui.mdc` - UI consistency across all components
+- `06-performance.mdc` - Performance matters in all code
+
+**Why Always Apply?**
+- Ensures consistent architecture patterns
+- Prevents anti-patterns from being introduced
+- Core principles that apply to the entire codebase
+
+### 🎯 Smart Apply (`alwaysApply: false` with specific globs)
+**Rules that apply to specific file patterns:**
+- `02-next-safe-action.mdc` - Only when working with server actions
+- `03-tanstack-query.mdc` - Only when working with queries/data fetching
+- `05-react-hook-form.mdc` - Only when working with forms
+- `07-authentication.mdc` - Only when working with auth features
+
+**Why Smart Apply?**
+- Reduces noise when not relevant
+- Focuses guidance on specific contexts
+- Improves AI agent performance by providing targeted rules
+- Avoids overwhelming with unnecessary information
+
+### 📂 Glob Patterns Explained
+
+```yaml
+# Always Apply Rules
+alwaysApply: true
+globs:
+  - "app/**/*.{ts,tsx}"           # All app router files
+  - "components/**/*.{ts,tsx}"     # All components
+  - "lib/**/*.{ts,tsx}"           # All library code
+
+# Smart Apply Rules
+alwaysApply: false
+globs:
+  # Server Actions (02-next-safe-action.mdc)
+  - "lib/actions/**/*.{ts,tsx}"
+  - "app/**/*action*.{ts,tsx}"
+  - "features/**/lib/actions/**/*.{ts,tsx}"
+
+  # TanStack Query (03-tanstack-query.mdc)
+  - "lib/queries/**/*.{ts,tsx}"
+  - "hooks/**/*query*.{ts,tsx}"
+  - "app/**/page.{ts,tsx}"
+
+  # Forms (05-react-hook-form.mdc)
+  - "components/**/*form*.{ts,tsx}"
+  - "features/**/components/**/*form*.{ts,tsx}"
+
+  # Authentication (07-authentication.mdc)
+  - "lib/auth*.{ts,tsx}"
+  - "lib/actions/auth/**/*.{ts,tsx}"
+  - "app/(auth)/**/*.{ts,tsx}"
+  - "features/auth/**/*.{ts,tsx}"
+```
+
+## 🎯 AI-DD Documentation Integration
+
+**NEW**: The `00-ai-dd-integration.mdc` rule provides direct integration with the comprehensive AI-DD documentation.
+
+**AI-DD directory** (`frontend/AI-DD/`) contains:
+- Complete Next.js 15 patterns
+- TypeScript & React 19 best practices
+- Feature-first architecture guidelines
+- shadcn/ui + Tailwind CSS v4 patterns
+- TanStack Query v5 data fetching
+- next-safe-action server actions
+- Zustand state management
+- Code quality & standards
+- Error handling patterns
+- API integration patterns
+
+**When to consult AI-DD:**
+- Creating new features or components
+- Implementing data fetching patterns
+- Writing forms with validation
+- Building server actions
+- Managing state
+- Following architecture patterns
+- Ensuring code quality and standards
+
+See `00-ai-dd-integration.mdc` for complete documentation map and quick reference.
+
+## 🚀 How Cursor Applies These Rules
+
+### Automatic Application
+When you open or edit a file, Cursor automatically:
+1. **Checks glob patterns** - Matches file path against each rule's globs
+2. **Applies relevant rules** - Loads matching rules into AI context
+3. **Enforces alwaysApply** - Rules with `alwaysApply: true` are always included
+
+### Example Workflow
+
+```typescript
+// Editing: app/login/page.tsx
+✅ Applied: 00-ai-dd-integration.mdc (alwaysApply)
+✅ Applied: 01-nextjs-core.mdc (alwaysApply, matches app/**)
+✅ Applied: 04-shadcn-ui.mdc (alwaysApply, matches app/**)
+✅ Applied: 06-performance.mdc (alwaysApply, matches app/**)
+✅ Applied: 07-authentication.mdc (glob match: app/(auth)/**)
+❌ Skipped: 02-next-safe-action.mdc (no glob match)
+❌ Skipped: 03-tanstack-query.mdc (no glob match)
+❌ Skipped: 05-react-hook-form.mdc (no glob match)
+
+// Editing: lib/actions/auth/login.ts
+✅ Applied: 00-ai-dd-integration.mdc (alwaysApply)
+✅ Applied: 01-nextjs-core.mdc (alwaysApply, matches lib/**)
+✅ Applied: 06-performance.mdc (alwaysApply, matches lib/**)
+✅ Applied: 02-next-safe-action.mdc (glob match: lib/actions/**)
+✅ Applied: 07-authentication.mdc (glob match: lib/actions/auth/**)
+❌ Skipped: 03-tanstack-query.mdc (no glob match)
+❌ Skipped: 04-shadcn-ui.mdc (no glob match)
+❌ Skipped: 05-react-hook-form.mdc (no glob match)
+
+// Editing: components/forms/login-form.tsx
+✅ Applied: 00-ai-dd-integration.mdc (alwaysApply)
+✅ Applied: 01-nextjs-core.mdc (alwaysApply, matches components/**)
+✅ Applied: 04-shadcn-ui.mdc (alwaysApply, matches components/**)
+✅ Applied: 06-performance.mdc (alwaysApply, matches components/**)
+✅ Applied: 05-react-hook-form.mdc (glob match: components/**/*form*.tsx)
+✅ Applied: 07-authentication.mdc (glob match: components/**/*auth*.tsx via login)
+❌ Skipped: 02-next-safe-action.mdc (no glob match)
+❌ Skipped: 03-tanstack-query.mdc (no glob match)
+```
+
+## 🎯 Best Practices for Rule Management
+
+### When to Use Always Apply
+- **Core architectural patterns** that apply everywhere
+- **Critical principles** that prevent common mistakes
+- **Universal standards** (performance, accessibility, security)
+
+### When to Use Smart Apply
+- **Technology-specific patterns** (forms, queries, auth)
+- **Feature-specific guidance** that only applies sometimes
+- **Advanced patterns** that would be noise in simple files
+
+### Maintaining Rules
+When adding new rules, ask:
+1. **Does this apply to ALL code?** → `alwaysApply: true`
+2. **Does this apply to specific patterns?** → `alwaysApply: false` + specific globs
+3. **Is this documentation?** → Consider adding to AI-DD instead
+
+## 🏗️ Perfect App Router Structure
+
+```
+app/
+├── (auth)/                         # Route group - Auth pages (no URL impact)
+│   ├── login/
+│   │   ├── page.tsx                # /login
+│   │   ├── loading.tsx             # Loading state
+│   │   └── error.tsx               # Error boundary
+│   ├── register/page.tsx           # /register
+│   └── layout.tsx                  # Auth layout (centered card)
+│
+├── (dashboard)/                    # Route group - Protected pages
+│   ├── _components/                # Private folder - Dashboard components only
+│   │   ├── sidebar.tsx
+│   │   ├── top-nav.tsx
+│   │   └── user-menu.tsx
+│   ├── profile/
+│   │   ├── page.tsx                # /profile (Server Component)
+│   │   ├── _components/            # Private - Profile components
+│   │   │   └── profile-form.tsx    # Client Component
+│   │   └── loading.tsx
+│   ├── chat/
+│   │   ├── page.tsx                # /chat
+│   │   ├── [roomId]/               # /chat/[roomId] (dynamic route)
+│   │   │   └── page.tsx
+│   │   └── _components/
+│   │       ├── chat-list.tsx
+│   │       └── message-input.tsx
+│   └── layout.tsx                  # Dashboard layout with sidebar
+│
+├── api/                            # API routes (Route Handlers)
+│   └── upload/route.ts             # POST /api/upload
+│
+├── _lib/                           # Private folder - Shared utilities
+│   ├── hooks/                      # Custom React hooks
+│   ├── utils/                      # Utility functions
+│   └── providers/                  # Context providers
+│
+├── layout.tsx                      # Root layout (fonts, metadata)
+├── page.tsx                        # Home page (/)
+├── loading.tsx                     # Global loading
+├── error.tsx                       # Global error boundary
+├── not-found.tsx                   # 404 page
+└── globals.css                     # Tailwind styles
+
+components/                         # Shared UI components
+├── ui/                             # shadcn/ui (50+ components)
+├── layout/                         # Header, Footer, Container
+├── forms/                          # Reusable forms
+└── shared/                         # Logo, Avatar, etc.
+
+lib/                                # Core business logic
+├── actions/                        # Server actions by feature
+│   ├── auth/                       # login.ts, register.ts
+│   ├── user/                       # update-profile.ts
+│   └── safe-action.ts              # next-safe-action clients
+├── api/                            # Symfony backend API clients
+│   ├── client.ts                   # Fetch wrapper with auth
+│   └── users.ts                    # User API calls
+├── queries/                        # TanStack Query hooks
+├── validations/                    # Zod schemas
+└── utils.ts                        # cn(), formatters
+
+hooks/                              # Custom React hooks
+types/                              # TypeScript types
+public/                             # Static assets
+
+.cursor/rules/                      # AI agent rules (this directory)
+```
+
+### App Router Conventions
+
+**Route Organization:**
+- `(group)/` - Route groups (no URL impact)
+- `_folder/` - Private folders (not routable)
+- `[param]/` - Dynamic routes
+- `[...slug]/` - Catch-all routes
+
+**Special Files:**
+- `page.tsx` - Route page
+- `layout.tsx` - Shared layout
+- `loading.tsx` - Loading UI (Suspense)
+- `error.tsx` - Error boundary
+- `not-found.tsx` - 404 page
+- `route.ts` - API route handler
+
+**Best Practices:**
+- Co-locate components with `_components/` folders
+- Use route groups for logical organization
+- Keep shared components in root `components/`
+- Separate server actions by feature in `lib/actions/`
+
+## 🎯 Usage Guidelines
+
+### For AI Agents
+
+When working on this frontend project, consult rules in this order:
+
+1. **Planning Phase**: Read `01-nextjs-core.mdc` for architectural principles
+2. **Feature Development**:
+   - Forms → `05-react-hook-form.mdc` + `02-next-safe-action.mdc`
+   - UI Components → `04-shadcn-ui.mdc`
+   - Data Fetching → `03-tanstack-query.mdc`
+   - Performance → `06-performance.mdc`
+3. **Implementation**: Follow patterns and best practices from relevant files
+4. **Validation**: Check against anti-patterns and "Don'ts" sections
+
+### For Developers
+
+Reference these files when:
+- Setting up new features or pages
+- Implementing forms with validation
+- Optimizing application performance
+- Integrating with the Symfony backend API
+- Ensuring accessibility and best practices
+
+## 🏗️ Architecture Principles
+
+### Server-First Development
+
+```
+Default Flow:
+Server Component → Fetch Data → Render HTML → Stream to Client
+
+Only use Client Components for:
+- Interactivity (onClick, onChange)
+- Browser APIs (window, localStorage)
+- React hooks (useState, useEffect)
+- Context providers
+```
+
+### Data Flow Pattern
+
+```
+Server Component (fetch data)
+    ↓
+Prefetch with TanStack Query
+    ↓
+Hydrate on client
+    ↓
+Client Component (interactive UI)
+    ↓
+Mutations via Server Actions
+    ↓
+Revalidate cache
+```
+
+## 📚 Quick Reference
+
+### Component Creation
+
+```typescript
+// Server Component (default)
+// File: app/products/page.tsx
+export default async function ProductsPage() {
+  const products = await getProducts()
+  return <ProductList products={products} />
+}
+
+// Client Component (when needed)
+// File: app/products/product-list.tsx
+'use client'
+
+export function ProductList({ products }) {
+  const [selected, setSelected] = useState(null)
+  return <div>{/* interactive UI */}</div>
+}
+```
+
+### Form with Validation
+
+```typescript
+// 1. Define schema (Zod)
+const schema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8)
+})
+
+// 2. Create server action (next-safe-action)
+export const loginAction = actionClient
+  .schema(schema)
+  .action(async ({ parsedInput }) => {
+    // Handle login
+  })
+
+// 3. Use in component (React Hook Form + shadcn/ui)
+const form = useForm({
+  resolver: zodResolver(schema)
+})
+
+return (
+  <Form {...form}>
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      {/* form fields */}
+    </form>
+  </Form>
+)
+```
+
+### Data Fetching
+
+```typescript
+// Server-side prefetch
+export default async function Page() {
+  const queryClient = new QueryClient()
+  await queryClient.prefetchQuery({
+    queryKey: ['users'],
+    queryFn: getUsers
+  })
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <UsersList />
+    </HydrationBoundary>
+  )
+}
+
+// Client component uses prefetched data
+'use client'
+
+export function UsersList() {
+  const { data } = useQuery({
+    queryKey: ['users'],
+    queryFn: getUsers
+  })
+  // ...
+}
+```
+
+## 🔧 Technology Stack
+
+### Core Framework
+- **Bun 1.x** - Fast all-in-one JavaScript runtime (package manager, bundler, test runner)
+- **Next.js 15.5.6** - React framework with App Router
+- **React 19.1.0** - UI library with Server Components
+- **TypeScript 5** - Type safety
+- **Turbopack** - Next-gen bundler for development and production
+
+### UI & Styling
+- **Tailwind CSS 4** - Utility-first CSS
+- **shadcn/ui** - Accessible component library (50+ components)
+- **Lucide React** - Icon library
+- **next-themes** - Dark mode support
+
+### Forms & Validation
+- **React Hook Form 7.65** - Form state management
+- **Zod 4.1** - Schema validation
+- **next-safe-action** - Type-safe server actions
+
+### Data Management
+- **TanStack Query** - Server state management
+- **TanStack Table** - Data tables
+
+### Backend Integration
+- **Symfony 7.3 API** - RESTful backend (../api)
+- **JWT Authentication** - Token-based auth
+- **Google OAuth** - Third-party authentication
+
+## 🎨 Component Library
+
+### Installed shadcn/ui Components
+
+**Layout**: Card, Separator, Tabs, Accordion, Collapsible, Resizable, Sidebar
+**Forms**: Input, Textarea, Checkbox, Radio, Select, Switch, Slider, Calendar
+**Feedback**: Alert, Dialog, Toast (Sonner), Progress, Spinner, Skeleton
+**Navigation**: Dropdown Menu, Context Menu, Menubar, Navigation Menu, Breadcrumb
+**Data**: Table, Chart (Recharts), Pagination
+**Overlay**: Popover, Tooltip, Hover Card, Drawer, Sheet
+
+### Adding Components
+
+```bash
+# Using Bun
+bunx --bun shadcn@latest add button
+bunx --bun shadcn@latest add form
+bunx --bun shadcn@latest update  # Update all components
+```
+
+## 🔗 Backend Integration
+
+### API Endpoints (from ../api)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | User registration |
+| POST | `/api/auth/login` | JWT login |
+| POST | `/api/auth/refresh` | Refresh token |
+| POST | `/api/auth/logout` | Logout |
+| GET | `/api/auth/status` | Auth status |
+| GET | `/api/users/me` | Current user profile |
+| GET | `/api/auth/google` | Google OAuth |
+
+### API Client Pattern
+
+```typescript
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost/api'
+
+export async function apiClient<T>(endpoint: string): Promise<T> {
+  const session = await auth()
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(session?.accessToken && {
+      Authorization: `Bearer ${session.accessToken}`
+    })
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, { headers })
+  if (!response.ok) throw new Error(`API Error: ${response.statusText}`)
+  return response.json()
+}
+```
+
+## 📖 Rule Files Deep Dive
+
+### 01-nextjs-core.mdc
+**Focus**: Next.js 15 fundamentals and architectural patterns
+
+**Key Topics**:
+- Server Components vs Client Components
+- Data fetching patterns (parallel, sequential, preloading)
+- Streaming and Suspense
+- File-based routing (pages, layouts, loading, error)
+- Metadata API (static and dynamic)
+- Revalidation strategies (tags, paths, ISR)
+- Environment variables
+
+**When to consult**: Planning new pages, implementing data fetching, setting up routing
+
+---
+
+### 02-next-safe-action.mdc
+**Focus**: Type-safe server actions with validation and auth
+
+**Key Topics**:
+- Creating action clients (base and authenticated)
+- Zod schema validation
+- Middleware (authentication, authorization)
+- Client-side usage with `useAction` hook
+- Error handling patterns
+- Integration with React Hook Form
+- Testing server actions
+
+**When to consult**: Creating mutations, handling form submissions, implementing auth flows
+
+---
+
+### 03-tanstack-query.mdc
+**Focus**: Server state management and caching
+
+**Key Topics**:
+- Provider setup with streaming hydration
+- Queries (basic, parameterized, dependent)
+- Server-side prefetching
+- Mutations with optimistic updates
+- Pagination and infinite queries
+- Cache management (invalidation, manual updates)
+- Integration with server actions
+
+**When to consult**: Fetching and caching data, implementing optimistic UIs, managing server state
+
+---
+
+### 04-shadcn-ui.mdc
+**Focus**: Accessible, customizable UI component library
+
+**Key Topics**:
+- Component installation and updates
+- Basic components (Button, Card, Dialog)
+- Form components (Input, Select, Checkbox, Radio)
+- Advanced components (Data Table, Toast)
+- Customization (wrappers, variants with CVA)
+- Server Components with shadcn/ui
+- Accessibility (ARIA labels, focus management)
+- Theming (CSS variables, dark mode)
+
+**When to consult**: Building UI, creating forms, implementing data tables, ensuring accessibility
+
+---
+
+### 05-react-hook-form.mdc
+**Focus**: Performant form state management with validation
+
+**Key Topics**:
+- Basic setup with TypeScript
+- Zod integration with `zodResolver`
+- shadcn/ui Form component integration
+- Advanced form controls (Select, Checkbox, Radio, Date Picker)
+- Integration with server actions
+- Dynamic fields (field arrays)
+- Conditional fields
+- File uploads
+- Custom validation
+
+**When to consult**: Creating forms, implementing validation, handling complex form logic
+
+---
+
+### 06-performance.mdc
+**Focus**: Application optimization and Web Vitals
+
+**Key Topics**:
+- Image optimization (next/image, responsive images, placeholders)
+- Font optimization (Google fonts, local fonts)
+- Code splitting (dynamic imports, Suspense)
+- Streaming and progressive rendering
+- Data fetching optimization (parallel, deduplication, preloading)
+- Caching strategies (fetch cache, React cache, route handler cache)
+- Bundle size optimization
+- Client-side performance (minimize JS, debouncing, virtual scrolling)
+- Web Vitals monitoring
+
+**When to consult**: Optimizing load times, reducing bundle size, improving Core Web Vitals
+
+## 🚀 Development Workflow
+
+### Standard Development Process
+
+1. **Check Backend API**: Ensure `../api` is running (see `../api/CLAUDE.md`)
+2. **Start Frontend**: `bun dev` (http://localhost:3000)
+3. **Create Feature**:
+   - Plan architecture (consult `01-nextjs-core.mdc`)
+   - Build UI (consult `04-shadcn-ui.mdc`)
+   - Implement forms (consult `05-react-hook-form.mdc` + `02-next-safe-action.mdc`)
+   - Fetch data (consult `03-tanstack-query.mdc`)
+4. **Optimize**: Check `06-performance.mdc` for best practices
+5. **Test & Build**: `bun run build`
+
+### Git Workflow
+
+```bash
+# Always start with
+git status && git branch
+
+# Create feature branch
+git checkout -b feature/chat-ui
+
+# Commit frequently
+git add . && git commit -m "feat: add chat message component"
+
+# Before risky operations
+git commit -m "chore: checkpoint before refactor"
+```
+
+## ✅ Best Practices Summary
+
+### Architecture
+- ✅ Server Components by default
+- ✅ Fetch data where needed (no prop drilling)
+- ✅ Stream with Suspense for better UX
+- ✅ Use server actions for mutations
+
+### Forms
+- ✅ Validate with Zod + next-safe-action
+- ✅ Use React Hook Form for state management
+- ✅ Use shadcn/ui Form components
+- ✅ Handle server-side validation errors
+
+### Data Fetching
+- ✅ Prefetch with TanStack Query on server
+- ✅ Parallel data fetching with Promise.all()
+- ✅ Invalidate queries after mutations
+- ✅ Use optimistic updates for instant feedback
+
+### UI/UX
+- ✅ Use shadcn/ui components
+- ✅ Keep components accessible (ARIA labels)
+- ✅ Provide loading states
+- ✅ Handle errors gracefully
+
+### Performance
+- ✅ Optimize images with next/image
+- ✅ Use next/font for fonts
+- ✅ Code split with dynamic imports
+- ✅ Monitor Web Vitals
+
+## 🔍 Related Documentation
+
+### Internal Docs
+- **Backend API**: `../api/CLAUDE.md`
+- **Backend Agents**: `../api/AGENTS.md`
+- **Postman Collection**: `../api/postman/`
+- **Frontend Overview**: `./CLAUDE.md`
+- **Frontend Agents**: `./AGENTS.md`
+
+### External Resources
+- **Next.js 15**: https://nextjs.org/docs
+- **React 19**: https://react.dev
+- **shadcn/ui**: https://ui.shadcn.com
+- **TanStack Query**: https://tanstack.com/query
+- **React Hook Form**: https://react-hook-form.com
+- **Zod**: https://zod.dev
+- **next-safe-action**: https://next-safe-action.dev
+
+## 🤖 AI Agent Guidelines
+
+When working with this frontend project:
+
+1. **Read** this README first for overview
+2. **Consult** specific rule files based on task
+3. **Follow** patterns and best practices exactly
+4. **Reference** `../api/CLAUDE.md` for backend integration
+5. **Check** `../api/postman/` for API contracts
+
+### Key Principles for Agents
+
+- **Server-first**: Default to Server Components
+- **Type-safe**: Use TypeScript and Zod for validation
+- **Secure**: Validate inputs, check auth, handle errors
+- **Performant**: Optimize images, fonts, code splitting
+- **Accessible**: Follow WCAG guidelines, use ARIA labels
+
+## 📝 Maintenance
+
+### Updating Components
+
+```bash
+# Update all shadcn components
+bunx --bun shadcn@latest update
+
+# Update specific component
+bunx --bun shadcn@latest update button
+```
+
+### Analyzing Bundle Size
+
+```bash
+ANALYZE=true bun run build
+```
+
+### Type Checking
+
+```bash
+bun run type-check
+```
+
+## 🎯 Summary
+
+These Cursor rules provide:
+- ✅ Comprehensive Next.js 15 best practices
+- ✅ Server-first architecture patterns
+- ✅ Type-safe forms and server actions
+- ✅ Performance optimization strategies
+- ✅ Accessible UI component usage
+- ✅ Backend API integration guidance
+
+**Result**: Consistent, performant, type-safe, accessible Next.js applications following 2025 best practices.

@@ -1,0 +1,242 @@
+---
+description: next-safe-action - Type-safe Server Actions with Zod validation
+globs:
+  - "lib/actions/**/*.{ts,tsx}"
+  - "app/**/*action*.{ts,tsx}"
+  - "features/**/lib/actions/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Next Safe Action - Type-Safe Server Actions
+
+## Overview
+
+**next-safe-action** provides type-safe server actions with built-in validation, authentication middleware, and error handling.
+
+**Why use it?**
+- ✅ Type-safe client-server communication
+- ✅ Automatic Zod validation
+- ✅ Middleware for authentication/authorization
+- ✅ Better error handling than raw server actions
+- ✅ Loading and error states out of the box
+
+## Basic Setup
+
+### 1. Create Action Client
+
+```typescript
+// lib/actions/safe-action.ts
+import { createSafeActionClient } from 'next-safe-action'
+
+// Base action client (no auth)
+export const actionClient = createSafeActionClient()
+```
+
+### 2. Add Authentication Middleware
+
+```typescript
+// lib/actions/safe-action.ts
+import { createSafeActionClient } from 'next-safe-action'
+import { auth } from '@/lib/auth'
+
+export const actionClient = createSafeActionClient()
+
+// Authenticated action client
+export const authActionClient = actionClient.use(async ({ next }) => {
+  const session = await auth()
+
+  if (!session) {
+    throw new Error('Unauthorized')
+  }
+
+  // Pass user context to action
+  return next({
+    ctx: {
+      userId: session.user.id,
+      email: session.user.email
+    }
+  })
+})
+```
+
+## Creating Server Actions
+
+### Basic Action (No Auth)
+
+```typescript
+// lib/actions/newsletter.ts
+'use server'
+
+import { actionClient } from './safe-action'
+import { z } from 'zod'
+
+const subscribeSchema = z.object({
+  email: z.string().email('Invalid email address')
+})
+
+export const subscribeToNewsletterAction = actionClient
+  .schema(subscribeSchema)
+  .action(async ({ parsedInput }) => {
+    // parsedInput is fully typed from Zod schema
+    await db.newsletter.create({
+      data: { email: parsedInput.email }
+    })
+
+    return {
+      success: true,
+      message: 'Subscribed successfully!'
+    }
+  })
+```
+
+### Authenticated Action
+
+```typescript
+// lib/actions/user.ts
+'use server'
+
+import { authActionClient } from './safe-action'
+import { z } from 'zod'
+import { revalidatePath } from 'next/cache'
+
+const updateProfileSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email')
+})
+
+export const updateProfileAction = authActionClient
+  .schema(updateProfileSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    // ctx.userId is available from middleware
+    await db.users.update({
+      where: { id: ctx.userId },
+      data: parsedInput
+    })
+
+    revalidatePath('/profile')
+
+    return { success: true }
+  })
+```
+
+## Client-Side Usage
+
+### Basic Form with useAction
+
+```typescript
+'use client'
+
+import { useAction } from 'next-safe-action/hooks'
+import { subscribeToNewsletterAction } from '@/lib/actions/newsletter'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+
+export function NewsletterForm() {
+  const { execute, result, isExecuting } = useAction(subscribeToNewsletterAction)
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+
+    execute({
+      email: formData.get('email') as string
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* Validation errors */}
+      {result?.validationErrors?.email && (
+        <p className="text-red-500">{result.validationErrors.email[0]}</p>
+      )}
+
+      {/* Server error */}
+      {result?.serverError && (
+        <p className="text-red-500">{result.serverError}</p>
+      )}
+
+      {/* Success message */}
+      {result?.data?.success && (
+        <p className="text-green-500">{result.data.message}</p>
+      )}
+
+      <Input
+        name="email"
+        type="email"
+        placeholder="Enter your email"
+        disabled={isExecuting}
+      />
+
+      <Button type="submit" disabled={isExecuting}>
+        {isExecuting ? 'Subscribing...' : 'Subscribe'}
+      </Button>
+    </form>
+  )
+}
+```
+
+### With React Hook Form
+
+```typescript
+'use client'
+
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useAction } from 'next-safe-action/hooks'
+import { updateProfileAction } from '@/lib/actions/user'
+import { z } from 'zod'
+import { toast } from 'sonner'
+
+const formSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email()
+})
+
+type FormData = z.infer<typeof formSchema>
+
+export function ProfileForm() {
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema)
+  })
+
+  const { execute, isExecuting } = useAction(updateProfileAction, {
+    onSuccess: ({ data }) => {
+      if (data?.success) {
+        toast.success('Profile updated successfully')
+      }
+    },
+    onError: ({ error }) => {
+      toast.error(error.serverError || 'Something went wrong')
+    }
+  })
+
+  const onSubmit = (data: FormData) => {
+    execute(data)
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      {/* form fields */}
+    </form>
+  )
+}
+```
+
+## Best Practices
+
+### ✅ Do's
+- Always use Zod schemas for input validation
+- Include descriptive error messages in schemas
+- Use middleware for cross-cutting concerns (auth, logging)
+- Return structured responses (`{ success, data, error }`)
+- Revalidate cache after mutations
+- Handle errors gracefully in actions
+- Use TypeScript for full type safety
+
+### ❌ Don'ts
+- Don't skip validation - always define a schema
+- Don't expose sensitive data in error messages
+- Don't forget to revalidate after mutations
+- Don't mix business logic with validation logic
+- Don't return raw database errors to client
+- Don't forget `'use server'` directive

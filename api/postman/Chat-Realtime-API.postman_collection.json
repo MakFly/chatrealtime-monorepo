@@ -1,0 +1,720 @@
+{
+	"info": {
+		"_postman_id": "chat-realtime-api-2025",
+		"name": "Chat Realtime API",
+		"description": "Complete API collection for Symfony Chat Realtime application with JWT authentication and Google SSO.\n\nBase URL: http://localhost\nAPI Version: v1",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "chat-realtime"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost",
+			"type": "string"
+		},
+		{
+			"key": "api_prefix",
+			"value": "/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "test_email",
+			"value": "test@example.com",
+			"type": "string"
+		},
+		{
+			"key": "test_password",
+			"value": "password123",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Status - Get Auth Methods",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has email_password enabled\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.methods.email_password).to.be.true;",
+									"});",
+									"",
+									"pm.test(\"Response has API version\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.version).to.equal('v1');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"status"
+							]
+						},
+						"description": "Get available authentication methods (email/password, Google SSO) and API version"
+					}
+				},
+				{
+					"name": "Register - Create Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has tokens\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.token).to.exist;",
+									"    pm.expect(jsonData.refresh_token).to.exist;",
+									"    ",
+									"    // Save tokens for subsequent requests",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.token);",
+									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.user.email).to.exist;",
+									"    pm.expect(jsonData.user.roles).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\",\n    \"name\": \"Test User\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user account with email and password. Optional name field."
+					}
+				},
+				{
+					"name": "Login - Email/Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tokens\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.token).to.exist;",
+									"    pm.expect(jsonData.refresh_token).to.exist;",
+									"    ",
+									"    // Save tokens",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.token);",
+									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login with email and password. Returns access token (1h) and refresh token (30 days)."
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has new access token\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.token).to.exist;",
+									"    pm.expect(jsonData.refresh_token).to.exist;",
+									"    ",
+									"    // Update access token",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.token);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Refresh an expired access token using the refresh token. Returns new access token."
+					}
+				},
+				{
+					"name": "Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});",
+									"",
+									"// Clear tokens after logout",
+									"pm.collectionVariables.set(\"access_token\", \"\");",
+									"pm.collectionVariables.set(\"refresh_token\", \"\");"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout and revoke the refresh token. Returns 204 No Content."
+					}
+				}
+			],
+			"description": "Email/password authentication endpoints"
+		},
+		{
+			"name": "Google SSO",
+			"item": [
+				{
+					"name": "Initiate Google OAuth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 302 (redirect)\", function () {",
+									"    pm.response.to.have.status(302);",
+									"});",
+									"",
+									"pm.test(\"Redirects to Google OAuth\", function () {",
+									"    const location = pm.response.headers.get('Location');",
+									"    pm.expect(location).to.include('accounts.google.com/o/oauth2/v2/auth');",
+									"    pm.expect(location).to.include('client_id=');",
+									"    pm.expect(location).to.include('scope=');",
+									"    pm.expect(location).to.include('state=');",
+									"});",
+									"",
+									"// ⚠️ IMPORTANT: This endpoint CANNOT be fully tested in Postman",
+									"// You need a web browser to complete the OAuth flow.",
+									"// See: postman/GOOGLE-SSO-TESTING-GUIDE.md for complete instructions"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/google",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"google"
+							]
+						},
+						"description": "⚠️ PARTIAL TEST ONLY IN POSTMAN\n\nThis endpoint initiates Google OAuth flow by redirecting to Google's login page.\n\n**What Postman can test:**\n- ✅ Endpoint returns 302 redirect\n- ✅ Location header points to Google OAuth\n- ✅ URL contains required parameters (client_id, scope, state)\n\n**What Postman CANNOT test:**\n- ❌ Complete OAuth flow (requires browser interaction)\n- ❌ User login on Google\n- ❌ Callback with authorization code\n- ❌ Token generation after successful auth\n\n**To test the complete flow:**\n1. Open in a web browser: http://localhost/api/v1/auth/google\n2. Login with your Google account\n3. Authorize the application\n4. Copy tokens from the redirect URL fragment\n5. Use tokens in Postman for authenticated requests\n\nSee `postman/GOOGLE-SSO-TESTING-GUIDE.md` for detailed instructions."
+					}
+				},
+				{
+					"name": "Google OAuth Callback",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// This test only checks error handling (no valid code)",
+									"pm.test(\"Status code is 302 (redirect to frontend)\", function () {",
+									"    pm.response.to.have.status(302);",
+									"});",
+									"",
+									"pm.test(\"Redirects to frontend with error\", function () {",
+									"    const location = pm.response.headers.get('Location');",
+									"    pm.expect(location).to.include('localhost:3000');",
+									"    pm.expect(location).to.include('error=');",
+									"});",
+									"",
+									"// ⚠️ NOTE: Cannot test with valid code in Postman",
+									"// Valid authorization codes are generated by Google OAuth flow",
+									"// and expire within seconds"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/google/callback?code=FAKE_CODE&state=FAKE_STATE",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"google",
+								"callback"
+							],
+							"query": [
+								{
+									"key": "code",
+									"value": "FAKE_CODE",
+									"description": "Authorization code from Google (⚠️ must be real, cannot be faked)"
+								},
+								{
+									"key": "state",
+									"value": "FAKE_STATE",
+									"description": "CSRF protection state token (⚠️ must match session state)"
+								}
+							]
+						},
+						"description": "⚠️ CANNOT BE FULLY TESTED IN POSTMAN\n\nGoogle OAuth callback endpoint that:\n1. Validates authorization code with Google\n2. Exchanges code for access token\n3. Fetches user info from Google\n4. Creates or links user account\n5. Generates JWT tokens\n6. Redirects to frontend with tokens\n\n**Why Postman cannot test this:**\n- Authorization codes are generated by Google during OAuth flow\n- Codes are single-use and expire in seconds\n- Codes must match the original OAuth request\n- Cannot be manually created or faked\n\n**This test only verifies:**\n- ✅ Error handling when code is invalid/missing\n- ✅ Redirect to frontend with error parameter\n\n**To test the complete callback:**\n1. Use a web browser for the full OAuth flow\n2. Backend will automatically call this endpoint\n3. See `postman/GOOGLE-SSO-TESTING-GUIDE.md` for instructions"
+					}
+				}
+			],
+			"description": "Google SSO authentication endpoints"
+		},
+		{
+			"name": "User Profile",
+			"item": [
+				{
+					"name": "Get Current User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.email).to.exist;",
+									"    pm.expect(jsonData.roles).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"me"
+							]
+						},
+						"description": "Get current authenticated user profile. Requires valid JWT token in Authorization header."
+					}
+				},
+				{
+					"name": "Update Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Profile updated successfully\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.equal('Profil mis à jour avec succès');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Name\",\n    \"picture\": \"https://example.com/avatar.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"me"
+							]
+						},
+						"description": "Update current user's profile (name and picture). Requires authentication."
+					}
+				},
+				{
+					"name": "Change Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Password changed successfully\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.equal('Mot de passe modifié avec succès');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"{{test_password}}\",\n    \"new_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/me/password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"me",
+								"password"
+							]
+						},
+						"description": "Change current user's password. Requires current password for verification. New password must be at least 8 characters."
+					}
+				}
+			],
+			"description": "User profile management endpoints (requires authentication)"
+		},
+		{
+			"name": "Error Examples",
+			"item": [
+				{
+					"name": "401 - Unauthorized (No Token)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"me"
+							]
+						},
+						"description": "Example of 401 Unauthorized error when accessing protected endpoint without token"
+					}
+				},
+				{
+					"name": "401 - Invalid Credentials",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"wrong@example.com\",\n    \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Example of 401 error with invalid login credentials"
+					}
+				},
+				{
+					"name": "400 - Validation Error (Short Password)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"short\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Example of 400 Bad Request with password too short (< 8 characters)"
+					}
+				},
+				{
+					"name": "409 - Conflict (Email Exists)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}{{api_prefix}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Example of 409 Conflict error when registering with existing email"
+					}
+				}
+			],
+			"description": "Examples of common error responses"
+		}
+	]
+}

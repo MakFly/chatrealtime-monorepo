@@ -1,0 +1,632 @@
+---
+description: Performance optimization - Images, fonts, code splitting, caching
+globs:
+  - "app/**/*.{ts,tsx}"
+  - "components/**/*.{ts,tsx}"
+  - "lib/**/*.{ts,tsx}"
+alwaysApply: true
+---
+
+# Performance Optimization - Next.js 15 Best Practices
+
+## Overview
+
+Performance optimization strategies for Next.js 15 applications with Server Components, streaming, and modern web APIs.
+
+## Image Optimization
+
+### Next.js Image Component
+
+```typescript
+import Image from 'next/image'
+
+// Basic usage
+export function ProductImage() {
+  return (
+    <Image
+      src="/product.jpg"
+      alt="Product"
+      width={500}
+      height={500}
+      priority // For above-the-fold images
+    />
+  )
+}
+
+// With placeholder
+export function HeroImage() {
+  return (
+    <Image
+      src="/hero.jpg"
+      alt="Hero"
+      width={1200}
+      height={600}
+      priority
+      placeholder="blur"
+      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRg..." // Generate with plaiceholder
+    />
+  )
+}
+
+// Responsive images
+export function ResponsiveImage() {
+  return (
+    <Image
+      src="/banner.jpg"
+      alt="Banner"
+      fill
+      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+      style={{ objectFit: 'cover' }}
+    />
+  )
+}
+```
+
+### Image Optimization Best Practices
+
+```typescript
+// ✅ Do's
+- Use `next/image` for automatic optimization
+- Set `priority` for above-the-fold images
+- Use `blur` placeholder for better UX
+- Define `sizes` for responsive images
+- Use WebP/AVIF formats (automatic with next/image)
+- Lazy load below-the-fold images (default)
+
+// ❌ Don'ts
+- Don't use regular `<img>` tags
+- Don't load large images without optimization
+- Don't set `priority` on all images
+- Don't forget `alt` text for accessibility
+```
+
+## Font Optimization
+
+### Google Fonts
+
+```typescript
+// app/layout.tsx
+import { Inter, Roboto_Mono } from 'next/font/google'
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+  preload: true
+})
+
+const robotoMono = Roboto_Mono({
+  subsets: ['latin'],
+  variable: '--font-roboto-mono',
+  display: 'swap',
+  weight: ['400', '700']
+})
+
+export default function RootLayout({
+  children
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en" className={`${inter.variable} ${robotoMono.variable}`}>
+      <body className="font-sans">{children}</body>
+    </html>
+  )
+}
+```
+
+### Local Fonts
+
+```typescript
+import localFont from 'next/font/local'
+
+const customFont = localFont({
+  src: [
+    {
+      path: './fonts/custom-regular.woff2',
+      weight: '400',
+      style: 'normal'
+    },
+    {
+      path: './fonts/custom-bold.woff2',
+      weight: '700',
+      style: 'normal'
+    }
+  ],
+  variable: '--font-custom',
+  display: 'swap'
+})
+```
+
+## Code Splitting
+
+### Dynamic Imports
+
+```typescript
+import dynamic from 'next/dynamic'
+
+// Lazy load component
+const HeavyComponent = dynamic(() => import('@/components/heavy-component'), {
+  loading: () => <Skeleton />,
+  ssr: false // Disable server-side rendering if needed
+})
+
+// Lazy load with named export
+const Chart = dynamic(
+  () => import('@/components/chart').then(mod => mod.Chart),
+  { ssr: false }
+)
+
+export function Dashboard() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <HeavyComponent />
+      <Chart data={data} />
+    </div>
+  )
+}
+```
+
+### Suspense Boundaries
+
+```typescript
+import { Suspense } from 'react'
+
+export default function Page() {
+  return (
+    <div>
+      <h1>Page Title</h1>
+
+      {/* Split heavy components into separate Suspense boundaries */}
+      <Suspense fallback={<ChartSkeleton />}>
+        <Chart />
+      </Suspense>
+
+      <Suspense fallback={<TableSkeleton />}>
+        <DataTable />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+## Streaming and Progressive Rendering
+
+### Server Component Streaming
+
+```typescript
+// app/products/page.tsx
+import { Suspense } from 'react'
+
+// Fast component - renders immediately
+async function ProductHeader() {
+  return <h1>Products</h1>
+}
+
+// Slow component - streams later
+async function ProductList() {
+  const products = await fetchProducts() // Slow API call
+  return (
+    <ul>
+      {products.map(product => (
+        <li key={product.id}>{product.name}</li>
+      ))}
+    </ul>
+  )
+}
+
+export default function ProductsPage() {
+  return (
+    <div>
+      <ProductHeader />
+      <Suspense fallback={<Skeleton />}>
+        <ProductList />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+### Loading States
+
+```typescript
+// app/dashboard/loading.tsx
+export default function Loading() {
+  return <DashboardSkeleton />
+}
+
+// app/dashboard/page.tsx - automatically wrapped in Suspense
+export default async function DashboardPage() {
+  const data = await fetchDashboardData()
+  return <Dashboard data={data} />
+}
+```
+
+## Data Fetching Optimization
+
+### Parallel Data Fetching
+
+```typescript
+// ✅ Good: Parallel requests
+async function Page() {
+  const userPromise = getUser()
+  const postsPromise = getPosts()
+  const commentsPromise = getComments()
+
+  const [user, posts, comments] = await Promise.all([
+    userPromise,
+    postsPromise,
+    commentsPromise
+  ])
+
+  return <Component user={user} posts={posts} comments={comments} />
+}
+
+// ❌ Bad: Sequential waterfall
+async function Page() {
+  const user = await getUser() // Waits
+  const posts = await getPosts() // Waits for user
+  const comments = await getComments() // Waits for posts
+
+  return <Component user={user} posts={posts} comments={comments} />
+}
+```
+
+### Request Deduplication
+
+```typescript
+import { cache } from 'react'
+import 'server-only'
+
+// Automatically deduplicates requests with same parameters
+export const getUser = cache(async (id: string) => {
+  const res = await fetch(`/api/users/${id}`)
+  return res.json()
+})
+
+// Called multiple times, but only fetches once
+async function UserProfile({ userId }) {
+  const user = await getUser(userId)
+  return <div>{user.name}</div>
+}
+
+async function UserPosts({ userId }) {
+  const user = await getUser(userId) // Deduped!
+  return <div>{user.posts}</div>
+}
+```
+
+### Preloading
+
+```typescript
+import { preload } from 'react-dom'
+
+// Preload data before component renders
+export default async function Page({ params }) {
+  preload(getUser(params.id)) // Start fetching early
+
+  return (
+    <div>
+      <UserProfile userId={params.id} />
+    </div>
+  )
+}
+```
+
+## Caching Strategies
+
+### Fetch Cache
+
+```typescript
+// Cache indefinitely (until revalidated)
+fetch('/api/data', {
+  cache: 'force-cache'
+})
+
+// Never cache
+fetch('/api/data', {
+  cache: 'no-store'
+})
+
+// Revalidate after 60 seconds
+fetch('/api/data', {
+  next: { revalidate: 60 }
+})
+
+// Tag-based revalidation
+fetch('/api/data', {
+  next: { tags: ['products'] }
+})
+```
+
+### React Cache
+
+```typescript
+import { cache } from 'react'
+
+// Memoize function for request duration
+const getUser = cache(async (id: string) => {
+  const res = await fetch(`/api/users/${id}`)
+  return res.json()
+})
+```
+
+### Unstable_cache (Route Handler Cache)
+
+```typescript
+import { unstable_cache } from 'next/cache'
+
+const getCachedData = unstable_cache(
+  async () => {
+    return await expensiveOperation()
+  },
+  ['cache-key'],
+  {
+    revalidate: 3600, // 1 hour
+    tags: ['data']
+  }
+)
+```
+
+## Bundle Size Optimization
+
+### Analyze Bundle
+
+```bash
+# Install bundle analyzer with Bun
+bun add -d @next/bundle-analyzer
+
+# next.config.js
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true'
+})
+
+module.exports = withBundleAnalyzer({
+  // Next.js config
+})
+
+# Run analysis
+ANALYZE=true bun run build
+```
+
+### Tree Shaking
+
+```typescript
+// ✅ Good: Import only what you need
+import { Button } from '@/components/ui/button'
+
+// ❌ Bad: Import entire library
+import * as Components from '@/components/ui'
+const { Button } = Components
+```
+
+### Dynamic Imports for Large Libraries
+
+```typescript
+// Heavy library - load only when needed
+const loadPDF = async () => {
+  const { PDFDocument } = await import('pdf-lib')
+  return PDFDocument
+}
+
+export function PDFViewer() {
+  const [pdf, setPdf] = useState(null)
+
+  const handleLoad = async () => {
+    const PDFDoc = await loadPDF()
+    setPdf(new PDFDoc())
+  }
+
+  return <button onClick={handleLoad}>Load PDF</button>
+}
+```
+
+## Client-Side Performance
+
+### Minimize Client JavaScript
+
+```typescript
+// ✅ Good: Server Component (no JS shipped)
+export default async function ProductList() {
+  const products = await getProducts()
+  return (
+    <ul>
+      {products.map(product => (
+        <li key={product.id}>{product.name}</li>
+      ))}
+    </ul>
+  )
+}
+
+// ❌ Bad: Client Component (ships JS)
+'use client'
+
+export default function ProductList() {
+  const [products, setProducts] = useState([])
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(setProducts)
+  }, [])
+
+  return <ul>{/* ... */}</ul>
+}
+```
+
+### Debouncing and Throttling
+
+```typescript
+'use client'
+
+import { useDebouncedCallback } from 'use-debounce'
+
+export function SearchInput() {
+  const handleSearch = useDebouncedCallback((value: string) => {
+    // API call
+    fetch(`/api/search?q=${value}`)
+  }, 300)
+
+  return <input onChange={(e) => handleSearch(e.target.value)} />
+}
+```
+
+### Virtual Scrolling
+
+```typescript
+'use client'
+
+import { useVirtualizer } from '@tanstack/react-virtual'
+
+export function VirtualList({ items }) {
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 35
+  })
+
+  return (
+    <div ref={parentRef} style={{ height: '400px', overflow: 'auto' }}>
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          position: 'relative'
+        }}
+      >
+        {virtualizer.getVirtualItems().map(virtualRow => (
+          <div
+            key={virtualRow.key}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${virtualRow.size}px`,
+              transform: `translateY(${virtualRow.start}px)`
+            }}
+          >
+            {items[virtualRow.index].name}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+## Metadata and SEO Performance
+
+### Static Metadata
+
+```typescript
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'My App',
+  description: 'App description',
+  openGraph: {
+    title: 'My App',
+    description: 'App description',
+    images: ['/og-image.jpg']
+  }
+}
+```
+
+### Dynamic Metadata with Parallel Fetching
+
+```typescript
+export async function generateMetadata({
+  params
+}: {
+  params: { id: string }
+}): Promise<Metadata> {
+  // Fetch is automatically deduped with page data
+  const product = await getProduct(params.id)
+
+  return {
+    title: product.name,
+    description: product.description,
+    openGraph: {
+      images: [product.image]
+    }
+  }
+}
+```
+
+## Monitoring Performance
+
+### Web Vitals
+
+```typescript
+// app/layout.tsx
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
+    </html>
+  )
+}
+```
+
+### Custom Web Vitals Reporting
+
+```typescript
+// app/web-vitals.tsx
+'use client'
+
+import { useReportWebVitals } from 'next/web-vitals'
+
+export function WebVitals() {
+  useReportWebVitals((metric) => {
+    console.log(metric)
+    // Send to analytics
+  })
+
+  return null
+}
+```
+
+## Best Practices Summary
+
+### ✅ Do's
+- Use Server Components by default
+- Stream slow components with Suspense
+- Parallelize data fetching with Promise.all()
+- Optimize images with next/image
+- Use next/font for font optimization
+- Lazy load heavy components with dynamic imports
+- Cache expensive operations
+- Minimize client-side JavaScript
+- Monitor Web Vitals
+
+### ❌ Don'ts
+- Don't use Client Components unnecessarily
+- Don't fetch data sequentially
+- Don't load large images without optimization
+- Don't include unused dependencies
+- Don't ignore bundle size
+- Don't skip performance monitoring
+- Don't forget to use Suspense boundaries
+
+## Performance Checklist
+
+- ✅ Images optimized with next/image
+- ✅ Fonts loaded with next/font
+- ✅ Code split with dynamic imports
+- ✅ Data fetched in parallel
+- ✅ Server Components used by default
+- ✅ Suspense boundaries for slow components
+- ✅ Caching strategies implemented
+- ✅ Bundle size analyzed
+- ✅ Web Vitals monitored
+- ✅ Lighthouse score > 90

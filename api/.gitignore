@@ -8,3 +8,25 @@
 /var/
 /vendor/
 ###< symfony/framework-bundle ###
+
+###> lexik/jwt-authentication-bundle ###
+/config/jwt/*.pem
+###< lexik/jwt-authentication-bundle ###
+
+###> pestphp/pest ###
+.phpunit.result.cache
+/var/coverage/
+###< pestphp/pest ###
+
+###> claude-docs ###
+/claudedocs/*
+###< claude-docs ###
+
+###> postman ###
+# Ignore environment files with sensitive tokens (local overrides)
+/postman/*local*.json
+/postman/*staging*.json
+/postman/*production*.json
+# Keep base environment in version control
+!postman/Chat-Realtime-API.postman_environment.json
+###< postman ###

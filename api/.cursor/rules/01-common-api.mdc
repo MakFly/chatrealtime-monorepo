@@ -1,0 +1,537 @@
+# Common API Patterns and Standards
+
+This rule file defines framework-agnostic API patterns for Symfony and Laravel projects. All APIs SHALL follow these standards for consistency, security, and maintainability.
+
+## Table of Contents
+- [RFC7807 Problem Details](#rfc7807-problem-details)
+- [Pagination](#pagination)
+- [Filtering and Sorting](#filtering-and-sorting)
+- [OpenAPI Documentation](#openapi-documentation)
+- [CORS and Security Headers](#cors-and-security-headers)
+- [Structured Logging](#structured-logging)
+- [Health Endpoints](#health-endpoints)
+
+---
+
+## RFC7807 Problem Details
+
+### When to Apply
+- **WHEN** returning any error response from API endpoints
+- **WHEN** validation fails (HTTP 422)
+- **WHEN** authorization fails (HTTP 401, 403)
+- **WHEN** resources not found (HTTP 404)
+- **WHEN** server errors occur (HTTP 500)
+
+### Requirements
+- Content-Type MUST be `application/problem+json`
+- Response MUST include: `type`, `title`, `status`, `detail`, `trace_id`
+- Validation errors MUST include `violations` array
+
+### Symfony Implementation
+
+```php
+// src/EventListener/ProblemJsonListener.php
+declare(strict_types=1);
+
+namespace App\EventListener;
+
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\KernelEvents;
+use Symfony\Component\Uid\Uuid;
+
+#[AsEventListener(event: KernelEvents::EXCEPTION)]
+final readonly class ProblemJsonListener
+{
+    public function __invoke(ExceptionEvent $event): void
+    {
+        $exception = $event->getThrowable();
+        $request = $event->getRequest();
+
+        $status = $exception instanceof HttpException
+            ? $exception->getStatusCode()
+            : 500;
+
+        $traceId = $request->headers->get('X-Request-Id') ?? Uuid::v4()->toString();
+
+        $problem = [
+            'type' => 'about:blank',
+            'title' => $this->getTitle($status),
+            'status' => $status,
+            'detail' => $exception->getMessage(),
+            'trace_id' => $traceId,
+        ];
+
+        // Add validation violations if available
+        if ($exception instanceof ValidationException) {
+            $problem['violations'] = $exception->getViolations();
+        }
+
+        $response = new JsonResponse(
+            $problem,
+            $status,
+            ['Content-Type' => 'application/problem+json']
+        );
+
+        $event->setResponse($response);
+    }
+
+    private function getTitle(int $status): string
+    {
+        return match ($status) {
+            400 => 'Bad Request',
+            401 => 'Unauthorized',
+            403 => 'Forbidden',
+            404 => 'Not Found',
+            422 => 'Validation Failed',
+            500 => 'Internal Server Error',
+            default => 'An error occurred',
+        };
+    }
+}
+```
+
+### Laravel Implementation
+
+```php
+// app/Providers/AppServiceProvider.php
+use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Str;
+
+public function boot(): void
+{
+    Response::macro('problem', function (
+        int $status,
+        string $title,
+        string $detail = '',
+        array $extra = []
+    ) {
+        return response()->json(array_merge([
+            'type' => 'about:blank',
+            'title' => $title,
+            'status' => $status,
+            'detail' => $detail,
+            'trace_id' => request()->header('X-Request-Id') ?? Str::uuid()->toString(),
+        ], $extra), $status, [
+            'Content-Type' => 'application/problem+json'
+        ]);
+    });
+}
+
+// app/Exceptions/Handler.php
+public function render($request, Throwable $e): Response
+{
+    if ($request->expectsJson()) {
+        $status = $this->getStatusCode($e);
+        $title = $this->getTitle($status);
+
+        $extra = [];
+        if ($e instanceof ValidationException) {
+            $extra['violations'] = collect($e->errors())
+                ->map(fn($messages, $field) => [
+                    'field' => $field,
+                    'message' => $messages[0] ?? '',
+                ])
+                ->values()
+                ->all();
+        }
+
+        return response()->problem($status, $title, $e->getMessage(), $extra);
+    }
+
+    return parent::render($request, $e);
+}
+```
+
+---
+
+## Pagination
+
+### When to Apply
+- **WHEN** returning list/collection endpoints
+- **WHEN** results could exceed 20 items
+- **WHEN** implementing `/api/users`, `/api/posts`, etc.
+
+### Requirements
+- Default limit: 20 items
+- Maximum limit: 100 items
+- MUST return metadata: `total`, `page`, `limit`, `pages`
+- MUST return links: `self`, `first`, `last`, `next`, `prev`
+
+### Offset Pagination (Standard)
+
+```php
+// Framework-agnostic response structure
+{
+    "data": [
+        {"id": 1, "name": "Item 1"},
+        {"id": 2, "name": "Item 2"}
+    ],
+    "meta": {
+        "total": 250,
+        "page": 2,
+        "limit": 20,
+        "pages": 13
+    },
+    "links": {
+        "self": "/api/users?page=2&limit=20",
+        "first": "/api/users?page=1&limit=20",
+        "last": "/api/users?page=13&limit=20",
+        "next": "/api/users?page=3&limit=20",
+        "prev": "/api/users?page=1&limit=20"
+    }
+}
+```
+
+### Cursor Pagination (Large Datasets)
+
+```php
+// For large datasets or real-time feeds
+{
+    "data": [
+        {"id": 100, "created_at": "2024-01-15T10:30:00Z"},
+        {"id": 99, "created_at": "2024-01-15T10:25:00Z"}
+    ],
+    "meta": {
+        "limit": 20,
+        "has_more": true
+    },
+    "links": {
+        "self": "/api/posts?cursor=abc123&limit=20",
+        "next": "/api/posts?cursor=def456&limit=20"
+    }
+}
+```
+
+### Symfony Helper
+
+```php
+// src/Api/PaginationHelper.php
+final readonly class PaginationHelper
+{
+    public function paginate(
+        array $items,
+        int $total,
+        int $page,
+        int $limit,
+        string $baseUrl
+    ): array {
+        $pages = (int) ceil($total / $limit);
+
+        return [
+            'data' => $items,
+            'meta' => [
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+                'pages' => $pages,
+            ],
+            'links' => [
+                'self' => "{$baseUrl}?page={$page}&limit={$limit}",
+                'first' => "{$baseUrl}?page=1&limit={$limit}",
+                'last' => "{$baseUrl}?page={$pages}&limit={$limit}",
+                'next' => $page < $pages ? "{$baseUrl}?page=" . ($page + 1) . "&limit={$limit}" : null,
+                'prev' => $page > 1 ? "{$baseUrl}?page=" . ($page - 1) . "&limit={$limit}" : null,
+            ],
+        ];
+    }
+}
+```
+
+---
+
+## Filtering and Sorting
+
+### When to Apply
+- **WHEN** implementing list endpoints
+- **WHEN** users need to filter by status, date ranges, categories
+- **WHEN** users need to sort results
+
+### Filter Syntax
+```
+# Simple filters
+?status=active&role=admin
+
+# Comparison operators
+?price[gte]=100&price[lte]=500
+?created_at[gte]=2024-01-01
+
+# Multiple values (OR)
+?status[in]=active,pending
+```
+
+### Sort Syntax
+```
+# Ascending
+?sort=created_at
+
+# Descending (minus prefix)
+?sort=-created_at
+
+# Multiple fields
+?sort=status,-created_at
+```
+
+### Validation Rules
+- Filter fields MUST be whitelisted
+- Sort fields MUST be whitelisted
+- Operators MUST be validated: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `like`
+
+---
+
+## OpenAPI Documentation
+
+### When to Apply
+- **WHEN** creating any API endpoint
+- **WHEN** changing request/response schemas
+- **WHEN** adding query parameters
+
+### Requirements
+- OpenAPI spec MUST be generated, not manually written
+- Endpoints MUST include descriptions and examples
+- Request/response schemas MUST be documented
+- CI MUST validate OpenAPI spec
+
+### Symfony + API Platform
+
+```bash
+# Generate OpenAPI spec
+bin/console api:openapi:export --yaml > openapi.yaml
+
+# In CI pipeline
+bin/console api:openapi:export --yaml > openapi-ci.yaml
+diff openapi.yaml openapi-ci.yaml || echo "OpenAPI spec changed"
+```
+
+```php
+// Annotate resources
+#[ApiResource(
+    operations: [
+        new Get(
+            description: 'Retrieve a user by ID',
+            summary: 'Get user'
+        ),
+        new GetCollection(
+            description: 'List all users with pagination',
+            summary: 'List users'
+        ),
+    ]
+)]
+class UserResource
+{
+    // ...
+}
+```
+
+### Laravel + Scribe
+
+```bash
+# Generate documentation
+php artisan scribe:generate
+
+# In CI pipeline
+php artisan scribe:generate --no-upgrade --force
+```
+
+```php
+/**
+ * List users
+ *
+ * Retrieve paginated list of users with optional filtering.
+ *
+ * @queryParam page integer Page number. Example: 1
+ * @queryParam limit integer Items per page. Example: 20
+ * @queryParam status string Filter by status. Example: active
+ *
+ * @response 200 scenario="Success" {"data": [{"id": 1, "email": "user@example.com"}]}
+ */
+public function index(Request $request): JsonResponse
+{
+    // ...
+}
+```
+
+---
+
+## CORS and Security Headers
+
+### When to Apply
+- **WHEN** API consumed by frontend (SPA, mobile apps)
+- **WHEN** API accessed from different origin
+- **ALWAYS** for production APIs
+
+### CORS Configuration
+
+#### Symfony (nelmio/cors-bundle)
+
+```yaml
+# config/packages/nelmio_cors.yaml
+nelmio_cors:
+    defaults:
+        origin_regex: true
+        allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
+        allow_methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+        allow_headers: ['Content-Type', 'Authorization', 'X-Request-Id']
+        expose_headers: ['X-RateLimit-Limit', 'X-RateLimit-Remaining']
+        max_age: 3600
+        allow_credentials: true
+    paths:
+        '^/api/': ~
+```
+
+```env
+# .env
+CORS_ALLOW_ORIGIN=^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$
+```
+
+#### Laravel (fruitcake/laravel-cors)
+
+```php
+// config/cors.php
+return [
+    'paths' => ['api/*'],
+    'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')),
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Request-Id'],
+    'exposed_headers' => ['X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+    'max_age' => 3600,
+    'supports_credentials' => true,
+];
+```
+
+### Security Headers
+
+```php
+// Add to all API responses
+$response->headers->set('X-Content-Type-Options', 'nosniff');
+$response->headers->set('X-Frame-Options', 'DENY');
+$response->headers->set('X-XSS-Protection', '1; mode=block');
+$response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+```
+
+---
+
+## Structured Logging
+
+### When to Apply
+- **WHEN** logging application events
+- **WHEN** debugging production issues
+- **WHEN** tracking requests across services
+
+### Requirements
+- Logs MUST be JSON formatted
+- Logs MUST include `trace_id` for correlation
+- Logs MUST include context: `user_id`, `endpoint`, `method`
+
+### Symfony (Monolog)
+
+```yaml
+# config/packages/monolog.yaml
+monolog:
+    handlers:
+        main:
+            type: stream
+            path: "%kernel.logs_dir%/%kernel.environment%.log"
+            level: info
+            formatter: 'monolog.formatter.json'
+```
+
+```php
+// Log with context
+$logger->info('User logged in', [
+    'trace_id' => $request->headers->get('X-Request-Id'),
+    'user_id' => $user->getId(),
+    'ip_address' => $request->getClientIp(),
+    'user_agent' => $request->headers->get('User-Agent'),
+]);
+```
+
+### Laravel
+
+```php
+// config/logging.php
+'stack' => [
+    'driver' => 'stack',
+    'channels' => ['single'],
+    'formatter' => \Monolog\Formatter\JsonFormatter::class,
+],
+```
+
+```php
+// Log with context
+Log::info('User logged in', [
+    'trace_id' => request()->header('X-Request-Id'),
+    'user_id' => auth()->id(),
+    'ip_address' => request()->ip(),
+    'user_agent' => request()->userAgent(),
+]);
+```
+
+---
+
+## Health Endpoints
+
+### When to Apply
+- **ALWAYS** for production APIs
+- **WHEN** using container orchestration (Kubernetes, Docker Swarm)
+- **WHEN** using load balancers
+
+### Requirements
+- `/healthz` - Liveness probe (is app running?)
+- `/readyz` - Readiness probe (can app serve traffic?)
+- SHOULD NOT require authentication
+
+### Implementation
+
+```php
+// Symfony Controller
+#[Route('/healthz', name: 'health_check', methods: ['GET'])]
+public function health(): JsonResponse
+{
+    return new JsonResponse(['status' => 'ok'], 200);
+}
+
+#[Route('/readyz', name: 'readiness_check', methods: ['GET'])]
+public function ready(): JsonResponse
+{
+    // Check database connection
+    try {
+        $this->entityManager->getConnection()->executeQuery('SELECT 1');
+    } catch (\Throwable $e) {
+        return new JsonResponse([
+            'status' => 'unavailable',
+            'checks' => ['database' => 'failed']
+        ], 503);
+    }
+
+    return new JsonResponse([
+        'status' => 'ok',
+        'checks' => ['database' => 'ok']
+    ], 200);
+}
+```
+
+```php
+// Laravel Controller
+Route::get('/healthz', function () {
+    return response()->json(['status' => 'ok']);
+});
+
+Route::get('/readyz', function () {
+    try {
+        DB::connection()->getPdo();
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => 'unavailable',
+            'checks' => ['database' => 'failed']
+        ], 503);
+    }
+
+    return response()->json([
+        'status' => 'ok',
+        'checks' => ['database' => 'ok']
+    ]);
+});
+```
