@@ -53,6 +53,7 @@ dev:
 	@echo "  • Adminer - http://localhost:9080"
 	@echo "  • Maildev - http://localhost:1080"
 	@echo "  • Dozzle (logs) - http://localhost:8888"
+	@echo "  • Redis - localhost:6379"
 	@echo ""
 	@echo "⏳ Starting containers..."
 	@docker compose -f $(COMPOSE_FILE) up -d
@@ -64,6 +65,7 @@ dev:
 	@echo "  • Database (Adminer): http://localhost:9080"
 	@echo "  • Mail catcher: http://localhost:1080"
 	@echo "  • Logs viewer: http://localhost:8888"
+	@echo "  • Redis: localhost:6379"
 	@echo ""
 	@echo "💡 Use 'make logs' to view logs or 'make dozzle' to open the logs viewer"
 	@echo "   Use 'make help' for all available commands"

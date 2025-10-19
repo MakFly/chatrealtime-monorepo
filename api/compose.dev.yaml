@@ -61,6 +61,21 @@ services:
             - "25:25"
     ###< symfony/mailer ###
 
+    ###> redis ###
+    redis:
+        image: redis:latest
+        container_name: chatrealtime-redis
+        ports:
+            - "6379:6379"
+        healthcheck:
+            test: ["CMD-SHELL", "redis-cli ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        volumes:
+            - redis-data:/data
+    ###< redis ###
+
     ###> dozzle ###
     dozzle:
         container_name: chatrealtime-dozzle
@@ -83,7 +98,8 @@ volumes:
         driver: local
     chatrealtime:
         driver: local
-
+    redis-data:
+        driver: local
 networks:
     chatrealtime:
         driver: bridge
