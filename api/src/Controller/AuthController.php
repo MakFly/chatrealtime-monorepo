@@ -9,9 +9,9 @@ use App\Repository\UserRepository;
 use App\Security\Interface\InputValidationServiceInterface;
 use App\Security\Interface\SecurityMonitoringServiceInterface;
 use App\Security\Interface\TokenBlacklistServiceInterface;
+use App\Security\Service\RefreshTokenServiceInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
-use Gesdinet\JWTRefreshTokenBundle\Generator\RefreshTokenGeneratorInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,7 +19,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Http\Attribute\CurrentUser;
 
 #[Route('/api/v1/auth')]
 class AuthController extends AbstractController
@@ -29,7 +28,7 @@ class AuthController extends AbstractController
     public function __construct(
         private UserPasswordHasherInterface $passwordHasher,
         private JWTTokenManagerInterface $jwtManager,
-        private RefreshTokenGeneratorInterface $refreshTokenGenerator,
+        private RefreshTokenServiceInterface $refreshTokenService,
         private RefreshTokenManagerInterface $refreshTokenManager,
         private EntityManagerInterface $entityManager,
         private InputValidationServiceInterface $inputValidation,
@@ -141,6 +140,7 @@ class AuthController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
         $ipAddress = $request->getClientIp();
+        $userAgent = $request->headers->get('User-Agent', 'unknown');
 
         if (!isset($data['refresh_token'])) {
             return $this->json([
@@ -149,18 +149,34 @@ class AuthController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $refreshToken = $this->refreshTokenManager->get($data['refresh_token']);
+        $plaintextToken = $data['refresh_token'];
 
-        if (!$refreshToken || !$refreshToken->isValid()) {
+        // SÉCURITÉ RENFORCÉE: Vérification avec détection de réutilisation
+        // - Recherche par hash SHA256 (sécurisé)
+        // - Détection de token déjà rotaté (attaque de réutilisation)
+        // - Révocation automatique de la chaîne en cas de breach
+        if (!$this->refreshTokenService->verifyToken($plaintextToken)) {
+            // Token invalide, expiré, rotaté, ou révoqué
+            // Si rotaté: la chaîne complète a été révoquée automatiquement
             return $this->json([
                 'error' => 'invalid_token',
-                'message' => 'Refresh token invalide ou expiré',
+                'message' => 'Refresh token invalide, expiré ou révoqué',
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Récupérer le token validé
+        $oldToken = $this->refreshTokenService->findByPlaintextToken($plaintextToken);
+
+        if (!$oldToken) {
+            return $this->json([
+                'error' => 'invalid_token',
+                'message' => 'Refresh token non trouvé',
             ], Response::HTTP_UNAUTHORIZED);
         }
 
         // Récupérer l'utilisateur
         $userRepository = $this->entityManager->getRepository(User::class);
-        $user = $userRepository->findOneBy(['email' => $refreshToken->getUsername()]);
+        $user = $userRepository->findOneBy(['email' => $oldToken->getUsername()]);
 
         if (!$user) {
             return $this->json([
@@ -169,28 +185,43 @@ class AuthController extends AbstractController
             ], Response::HTTP_UNAUTHORIZED);
         }
 
-        // SÉCURITÉ: Rotation du refresh token - invalider l'ancien token
-        $this->refreshTokenManager->delete($refreshToken);
-
-        // Générer un nouveau access token
+        // Générer un nouveau access token JWT
         $accessToken = $this->jwtManager->create($user);
 
-        // SÉCURITÉ: Générer un nouveau refresh token (rotation)
-        $newRefreshToken = $this->refreshTokenGenerator->createForUserWithTtl(
-            $user,
-            self::REFRESH_TOKEN_TTL
+        // SÉCURITÉ: Rotation avec tracking complet
+        // - Hash SHA256 du nouveau token
+        // - Lien avec l'ancien token (rotation chain)
+        // - Tracking IP et User-Agent
+        // - Timestamp de rotation
+        $newPlaintextToken = bin2hex(random_bytes(64)); // Generate new secure token
+        $this->refreshTokenService->rotateToken(
+            $oldToken,
+            $newPlaintextToken,
+            $ipAddress,
+            $userAgent
         );
-        $this->refreshTokenManager->save($newRefreshToken);
 
-        // Logging pour surveillance
-        $this->securityMonitoring->logTokenRefresh($user->getUserIdentifier(), $ipAddress);
+        // Logging pour surveillance avec métadonnées
+        $this->securityMonitoring->logTokenRefresh(
+            $user->getUserIdentifier(),
+            $ipAddress,
+            [
+                'user_agent' => $userAgent,
+                'rotation_chain_id' => $oldToken->getId(),
+            ]
+        );
 
         // Ajouter les headers de rate limit si disponibles
         $response = $this->json([
             'access_token' => $accessToken,
-            'refresh_token' => $newRefreshToken->getRefreshToken(),
+            'refresh_token' => $newPlaintextToken, // Return plaintext to client
             'token_type' => 'Bearer',
             'expires_in' => (int) ($_ENV['JWT_TOKEN_TTL'] ?? 3600),
+            'user' => [
+                'id' => $user->getId(),
+                'email' => $user->getEmail(),
+                'roles' => $user->getRoles(),
+            ],
         ]);
 
         $this->addRateLimitHeaders($request, $response);
@@ -211,13 +242,16 @@ class AuthController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        $refreshToken = $this->refreshTokenManager->get($data['refresh_token']);
+        // SÉCURITÉ RENFORCÉE: Utiliser RefreshTokenService pour trouver le token hashé
+        $refreshToken = $this->refreshTokenService->findByPlaintextToken($data['refresh_token']);
 
         if ($refreshToken) {
             $userIdentifier = $refreshToken->getUsername();
 
-            // Supprimer le refresh token
-            $this->refreshTokenManager->delete($refreshToken);
+            // Marquer le token comme révoqué (plus sûr que la suppression)
+            $refreshToken->setRevokedAt(new \DateTime());
+            $this->entityManager->persist($refreshToken);
+            $this->entityManager->flush();
 
             // SÉCURITÉ: Blacklister l'access token si fourni
             if (isset($data['access_token'])) {
@@ -250,16 +284,22 @@ class AuthController extends AbstractController
         // Générer le JWT access token
         $accessToken = $this->jwtManager->create($user);
 
-        // SÉCURITÉ: Générer le refresh token avec TTL réduit (7 jours au lieu de 30)
-        $refreshToken = $this->refreshTokenGenerator->createForUserWithTtl(
+        // SÉCURITÉ RENFORCÉE: Utiliser RefreshTokenService avec token hashing
+        // - Génère un token aléatoire sécurisé (128 caractères)
+        // - Hash SHA256 pour stockage en base
+        // - Tracking IP et User-Agent pour sécurité
+        $plaintextToken = bin2hex(random_bytes(64));
+        $this->refreshTokenService->createToken(
             $user,
-            self::REFRESH_TOKEN_TTL
+            $plaintextToken,
+            self::REFRESH_TOKEN_TTL,
+            $request->getClientIp(),
+            $request->headers->get('User-Agent', 'unknown')
         );
-        $this->refreshTokenManager->save($refreshToken);
 
         $response = $this->json([
             'access_token' => $accessToken,
-            'refresh_token' => $refreshToken->getRefreshToken(),
+            'refresh_token' => $plaintextToken, // Return plaintext to client
             'token_type' => 'Bearer',
             'expires_in' => (int) ($_ENV['JWT_TOKEN_TTL'] ?? 3600),
             'user' => [

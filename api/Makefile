@@ -125,7 +125,14 @@ clear:
 	@docker compose -f $(COMPOSE_FILE) exec -it $(CONTAINER_NAME) php bin/console cache:clear
 
 ############# Testing Commands #############
-test:
+# Internal target to reset test database
+test-db-reset:
+	@echo "🗄️  Resetting test database..."
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) php bin/console doctrine:database:drop --force --env=test --quiet 2>/dev/null || true
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) php bin/console doctrine:database:create --env=test --quiet
+	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) php bin/console doctrine:migrations:migrate --no-interaction --env=test --quiet
+
+test: test-db-reset
 	@echo "🧪 Running all tests..."
 	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --no-coverage
 
@@ -133,7 +140,7 @@ test-unit:
 	@echo "🧪 Running unit tests..."
 	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --testsuite=Unit --no-coverage
 
-test-feature:
+test-feature: test-db-reset
 	@echo "🧪 Running feature tests..."
 	@docker compose -f $(COMPOSE_FILE) exec $(CONTAINER_NAME) vendor/bin/pest --testsuite=Feature --no-coverage
 

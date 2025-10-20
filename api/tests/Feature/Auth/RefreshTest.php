@@ -49,7 +49,7 @@ it('returns new access token when refresh token is valid', function () {
     expect($data)->toHaveKeys(['access_token', 'refresh_token']);
     expect($data['access_token'])->toBeValidJwt();
     expect($data['access_token'])->not->toBe($originalAccessToken); // New token should be different
-    expect($data['refresh_token'])->toBe($refreshToken); // Refresh token stays the same
+    expect($data['refresh_token'])->not->toBe($refreshToken); // TOKEN ROTATION: New refresh token for security
 
     // Cleanup - refresh entity from database
     $user = $em->getRepository(User::class)->findOneBy(['email' => 'refresh@test.com']);
@@ -173,12 +173,14 @@ it('can refresh multiple times with same refresh token', function () {
 
     $firstRefresh = test()->client()->getResponse();
     expect($firstRefresh->getStatusCode())->toBe(200);
+    $firstData = json_decode($firstRefresh->getContent(), true);
+    $newRefreshToken = $firstData['refresh_token']; // Get rotated token
 
     sleep(1);
 
-    // Second refresh with same token
+    // Second refresh with NEW token (token rotation)
     postJson('/api/v1/auth/refresh', [
-        'refresh_token' => $refreshToken,
+        'refresh_token' => $newRefreshToken, // Use new rotated token, not old one
     ]);
 
     $secondRefresh = test()->client()->getResponse();

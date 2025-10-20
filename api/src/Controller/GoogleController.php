@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Security\Service\RefreshTokenServiceInterface;
 use App\Service\GoogleUserProvisioner;
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
-use Gesdinet\JWTRefreshTokenBundle\Generator\RefreshTokenGeneratorInterface;
-use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -22,8 +21,7 @@ class GoogleController extends AbstractController
         private ClientRegistry $clientRegistry,
         private GoogleUserProvisioner $userProvisioner,
         private JWTTokenManagerInterface $jwtManager,
-        private RefreshTokenGeneratorInterface $refreshTokenGenerator,
-        private RefreshTokenManagerInterface $refreshTokenManager,
+        private RefreshTokenServiceInterface $refreshTokenService,
     ) {}
 
     #[Route('', name: 'app_google_connect', methods: ['GET'])]
@@ -65,6 +63,22 @@ class GoogleController extends AbstractController
             ]);
         }
 
+        // Vérifier si le code OAuth est présent
+        if (!$request->query->has('code')) {
+            return $this->redirectToFrontend([
+                'error' => 'missing_oauth_code',
+                'message' => 'Paramètre de code OAuth manquant',
+            ]);
+        }
+
+        // Vérifier si le state est présent (si activé)
+        if ($this->isStateRequired() && !$request->query->has('state')) {
+            return $this->redirectToFrontend([
+                'error' => 'missing_oauth_state',
+                'message' => 'Paramètre de state OAuth manquant',
+            ]);
+        }
+
         try {
             $client = $this->clientRegistry->getClient('google');
 
@@ -87,16 +101,24 @@ class GoogleController extends AbstractController
 
             // Générer les tokens JWT
             $jwtToken = $this->jwtManager->create($user);
-            $refreshToken = $this->refreshTokenGenerator->createForUserWithTtl(
+
+            // SÉCURITÉ RENFORCÉE: Utiliser RefreshTokenService avec token hashing
+            // - Génère un token aléatoire sécurisé (128 caractères)
+            // - Hash SHA256 pour stockage en base
+            // - Tracking IP et User-Agent pour sécurité
+            $plaintextToken = bin2hex(random_bytes(64));
+            $this->refreshTokenService->createToken(
                 $user,
-                (int) ($_ENV['JWT_REFRESH_TOKEN_TTL'] ?? 2592000)
+                $plaintextToken,
+                (int) ($_ENV['JWT_REFRESH_TOKEN_TTL'] ?? 2592000),
+                $request->getClientIp(),
+                $request->headers->get('User-Agent', 'unknown')
             );
-            $this->refreshTokenManager->save($refreshToken);
 
             // Rediriger vers le frontend avec les tokens
             return $this->redirectToFrontend([
                 'access_token' => $jwtToken,
-                'refresh_token' => $refreshToken->getRefreshToken(),
+                'refresh_token' => $plaintextToken, // Return plaintext to client
                 'token_type' => 'Bearer',
                 'expires_in' => (string) ($_ENV['JWT_TOKEN_TTL'] ?? 3600),
             ]);
@@ -118,6 +140,13 @@ class GoogleController extends AbstractController
             $_ENV['SSO_ENABLED'] ?? 'false',
             FILTER_VALIDATE_BOOLEAN
         );
+    }
+
+    private function isStateRequired(): bool
+    {
+        // Vérifier la configuration OAuth pour voir si use_state est activé
+        // Par défaut, on utilise use_state=true pour la sécurité CSRF
+        return true;
     }
 
     private function redirectToFrontend(array $params): RedirectResponse

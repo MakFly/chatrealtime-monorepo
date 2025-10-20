@@ -12,10 +12,17 @@ class RateLimitTest extends WebTestCase
     {
         $client = static::createClient();
 
+        // Clear rate limiter cache to ensure clean state for this test
+        $container = $client->getContainer();
+        if ($container->has('cache.rate_limiter')) {
+            $container->get('cache.rate_limiter')->clear();
+        }
+
         // Effectuer 6 tentatives de connexion (limite: 5 par minute)
         for ($i = 0; $i < 6; $i++) {
             $client->request('POST', '/api/v1/auth/login', [], [], [
                 'CONTENT_TYPE' => 'application/json',
+                'HTTP_X_Test_Enable_RateLimit' => '1', // Enable rate limiting for this test
             ], json_encode([
                 'email' => 'nonexistent@example.com',
                 'password' => 'WrongPassword123!',
@@ -40,10 +47,17 @@ class RateLimitTest extends WebTestCase
     {
         $client = static::createClient();
 
+        // Clear rate limiter cache to ensure clean state for this test
+        $container = $client->getContainer();
+        if ($container->has('cache.rate_limiter')) {
+            $container->get('cache.rate_limiter')->clear();
+        }
+
         // Effectuer 4 tentatives d'inscription (limite: 3 par minute)
         for ($i = 0; $i < 4; $i++) {
             $client->request('POST', '/api/v1/auth/register', [], [], [
                 'CONTENT_TYPE' => 'application/json',
+                'HTTP_X_Test_Enable_RateLimit' => '1', // Enable rate limiting for this test
             ], json_encode([
                 'email' => "test{$i}@example.com",
                 'password' => 'StrongP@ss123',

@@ -8,7 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 it('returns JWT when registration is successful with all fields', function () {
     postJson('/api/v1/auth/register', [
         'email' => 'newuser@test.com',
-        'password' => 'securepassword123',
+        'password' => 'SecureP@ssw0rd!', // Strong password: uppercase, lowercase, numbers, special chars
         'name' => 'New User',
     ]);
 
@@ -35,7 +35,7 @@ it('returns JWT when registration is successful with all fields', function () {
 it('returns JWT when registration is successful without optional name', function () {
     postJson('/api/v1/auth/register', [
         'email' => 'noname@test.com',
-        'password' => 'password123',
+        'password' => 'SecureP@ssw0rd!',
     ]);
 
     $response = test()->client()->getResponse();
@@ -62,7 +62,7 @@ it('returns 409 when email already exists', function () {
     // Create existing user
     $existingUser = createUser([
         'email' => 'existing@test.com',
-        'password' => 'password123',
+        'password' => 'SecureP@ssw0rd!',
     ]);
     $em->persist($existingUser);
     $em->flush();
@@ -70,7 +70,7 @@ it('returns 409 when email already exists', function () {
     // Try to register with same email
     postJson('/api/v1/auth/register', [
         'email' => 'existing@test.com',
-        'password' => 'differentpassword',
+        'password' => 'DifferentP@ss1!', // Strong password with digit
         'name' => 'Different Name',
     ]);
 
@@ -129,7 +129,7 @@ it('returns 400 when both email and password are missing', function () {
 it('creates user in database with hashed password', function () {
     postJson('/api/v1/auth/register', [
         'email' => 'hashtest@test.com',
-        'password' => 'plaintext123',
+        'password' => 'PlainT3xt!',
         'name' => 'Hash Test User',
     ]);
 
@@ -145,7 +145,7 @@ it('creates user in database with hashed password', function () {
     expect($user->getName())->toBe('Hash Test User');
 
     // Verify password is hashed (not plaintext)
-    expect($user->getPassword())->not->toBe('plaintext123');
+    expect($user->getPassword())->not->toBe('PlainT3xt!');
     expect($user->getPassword())->toStartWith('$');
 
     // Verify user has default role
@@ -160,7 +160,7 @@ it('can login immediately after registration', function () {
     // First register
     postJson('/api/v1/auth/register', [
         'email' => 'loginafter@test.com',
-        'password' => 'password123',
+        'password' => 'SecureP@ssw0rd!',
         'name' => 'Login After User',
     ]);
 
@@ -170,7 +170,7 @@ it('can login immediately after registration', function () {
     // Then try to login
     postJson('/api/v1/auth/login', [
         'email' => 'loginafter@test.com',
-        'password' => 'password123',
+        'password' => 'SecureP@ssw0rd!',
     ]);
 
     $loginResponse = test()->client()->getResponse();

@@ -45,6 +45,13 @@ class RateLimitSubscriber implements EventSubscriberInterface
         }
 
         $request = $event->getRequest();
+
+        // Disable rate limiting in test environment UNLESS explicitly enabled via header
+        // This allows RateLimitTest to test rate limiting while other tests run freely
+        if ($_ENV['APP_ENV'] === 'test' && !$request->headers->has('X-Test-Enable-RateLimit')) {
+            return;
+        }
+
         $path = $request->getPathInfo();
         $method = $request->getMethod();
 
