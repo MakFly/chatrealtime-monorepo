@@ -41,7 +41,7 @@ export default function DevLoginPage() {
 
       // Redirect to home page after 1 second with full page reload
       // Full reload ensures Server Components fetch user and hydrate Context
-      // Token expiration will be extracted from JWT and stored by AuthProvider
+      // Token expiration sera lu depuis la métadonnée de cookie par AuthProvider
       setTimeout(() => {
         window.location.href = '/'
       }, 1000)

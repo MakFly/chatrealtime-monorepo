@@ -52,7 +52,7 @@ export function LoginForm({ className, error, redirect }: LoginFormProps) {
       
       // Force hard reload to ensure Server Components fetch user
       // and AuthProvider starts token refresh timer
-      // Token expiration will be extracted from JWT and stored by AuthProvider
+      // Token expiration will be read from cookie metadata and stored by AuthProvider
       window.location.href = formData.get('redirect') as string || '/dashboard'
     } catch (error) {
       setIsFormLoading(false)

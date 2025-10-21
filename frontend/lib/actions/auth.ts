@@ -163,16 +163,24 @@ export async function registerAction(formData: FormData) {
  */
 export async function logoutAction() {
   try {
+    // Get refresh token from cookies before clearing session
+    const cookies = await import('next/headers').then(m => m.cookies())
+    const refreshToken = cookies.get('refresh_token')?.value
+
     // Call the logout API to invalidate refresh token on backend
-    // We ignore errors here since we'll clear the session anyway
-    await fetch(`${API_URL}${API_PREFIX}/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }).catch(() => {
-      // Ignore errors - we'll clear the session regardless
-    })
+    if (refreshToken) {
+      await fetch(`${API_URL}${API_PREFIX}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refresh_token: refreshToken,
+        }),
+      }).catch(() => {
+        // Ignore errors - we'll clear the session regardless
+      })
+    }
   } catch (error) {
     console.error('Logout error:', error)
   } finally {

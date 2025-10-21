@@ -78,13 +78,24 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies()
 
     // Set access_token with TTL from API (respects backend JWT_TOKEN_TTL)
+    const accessTokenExpiresAt = Math.floor(Date.now() / 1000) + authData.expires_in
+
     cookieStore.set('access_token', authData.access_token, {
       httpOnly: false,
       secure: false, // Dev only, always false
       sameSite: 'lax',
       maxAge: authData.expires_in,
       path: '/',
-      expires: new Date(Date.now() + authData.expires_in * 1000),
+      expires: new Date(accessTokenExpiresAt * 1000),
+    })
+
+    cookieStore.set('access_token_expires_at', accessTokenExpiresAt.toString(), {
+      httpOnly: false,
+      secure: false, // Dev only, always false
+      sameSite: 'lax',
+      maxAge: authData.expires_in,
+      path: '/',
+      expires: new Date(accessTokenExpiresAt * 1000),
     })
 
     // Set refresh_token with normal 7-day expiration

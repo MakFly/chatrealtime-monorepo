@@ -3,6 +3,7 @@ import type { Session, User } from '@/types/auth'
 
 const ACCESS_TOKEN_COOKIE = 'access_token'
 const REFRESH_TOKEN_COOKIE = 'refresh_token'
+const ACCESS_TOKEN_EXPIRES_AT_COOKIE = 'access_token_expires_at'
 const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 // 7 days in seconds
 
 const baseSecureFlag = process.env.NODE_ENV === 'production'
@@ -21,52 +22,42 @@ const refreshTokenCookieOptions = {
   path: '/', // Path remains / so SSR pages receive the cookie for server-side validation
 }
 
-type DecodedJWT = {
-  exp: number
-  iat: number
-}
-
-function decodeJWT(token: string): DecodedJWT | null {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-
-    const payload = JSON.parse(
-      Buffer.from(parts[1], 'base64').toString('utf-8')
-    )
-
-    return {
-      exp: payload.exp || 0,
-      iat: payload.iat || 0,
-    }
-  } catch {
-    return null
-  }
-}
-
 /**
  * Get the current user session from cookies
  * Returns null if no valid session exists
  */
 export async function getSession(): Promise<Session | null> {
-  const cookieStore = await cookies()
+  try {
+    const cookieStore = await cookies()
 
-  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value
-  const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
+    const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value
+    const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
+    const accessTokenExpiresAt = cookieStore.get(ACCESS_TOKEN_EXPIRES_AT_COOKIE)?.value
 
-  if (!accessToken || !refreshToken) {
+    if (!accessToken || !refreshToken || !accessTokenExpiresAt) {
+      return null
+    }
+
+    // Validate token strings
+    if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
+      console.error('Invalid token types:', { accessToken: typeof accessToken, refreshToken: typeof refreshToken })
+      return null
+    }
+
+    const expiresAtSeconds = Number.parseInt(accessTokenExpiresAt, 10)
+    if (Number.isNaN(expiresAtSeconds) || expiresAtSeconds <= 0) {
+      console.error('Invalid token expiration:', accessTokenExpiresAt)
+      return null
+    }
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresAt: expiresAtSeconds * 1000,
+    }
+  } catch (error) {
+    console.error('Error getting session:', error)
     return null
-  }
-
-  const decoded = decodeJWT(accessToken)
-  if (!decoded || !decoded.exp) {
-    return null
-  }
-
-  return {
-    accessToken,
-    refreshToken,
-    expiresAt: decoded.exp * 1000,
   }
 }
 
@@ -81,6 +72,12 @@ export async function getCurrentUser(): Promise<User | null> {
     return null
   }
 
+  // Validate token before making API call
+  if (!session.accessToken || typeof session.accessToken !== 'string') {
+    console.error('Invalid access token:', session.accessToken)
+    return null
+  }
+
   try {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost'
     const response = await fetch(`${API_URL}/api/v1/user/me`, {
@@ -92,10 +89,19 @@ export async function getCurrentUser(): Promise<User | null> {
     })
 
     if (!response.ok) {
+      console.error('API response not ok:', response.status, response.statusText)
       return null
     }
 
-    return await response.json()
+    const userData = await response.json()
+    
+    // Validate response data
+    if (!userData || typeof userData !== 'object') {
+      console.error('Invalid user data received:', userData)
+      return null
+    }
+
+    return userData
   } catch (error) {
     console.error('Failed to fetch current user:', error)
     return null
@@ -114,7 +120,8 @@ export async function setSession(
   const cookieStore = await cookies()
 
   const normalizedExpiresIn = Math.max(1, expiresIn)
-  const accessTokenExpiry = new Date(Date.now() + normalizedExpiresIn * 1000)
+  const expiresAtSeconds = Math.floor(Date.now() / 1000) + normalizedExpiresIn
+  const accessTokenExpiry = new Date(expiresAtSeconds * 1000)
   const refreshTokenExpiry = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE * 1000)
 
   cookieStore.set(ACCESS_TOKEN_COOKIE, accessToken, {
@@ -122,6 +129,19 @@ export async function setSession(
     maxAge: normalizedExpiresIn,
     expires: accessTokenExpiry,
   })
+
+  cookieStore.set(
+    ACCESS_TOKEN_EXPIRES_AT_COOKIE,
+    expiresAtSeconds.toString(),
+    {
+      httpOnly: false,
+      secure: baseSecureFlag,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: normalizedExpiresIn,
+      expires: accessTokenExpiry,
+    }
+  )
 
   cookieStore.set(REFRESH_TOKEN_COOKIE, refreshToken, {
     ...refreshTokenCookieOptions,
@@ -138,6 +158,7 @@ export async function clearSession(): Promise<void> {
 
   cookieStore.delete(ACCESS_TOKEN_COOKIE)
   cookieStore.delete(REFRESH_TOKEN_COOKIE)
+  cookieStore.delete(ACCESS_TOKEN_EXPIRES_AT_COOKIE)
 }
 
 /**

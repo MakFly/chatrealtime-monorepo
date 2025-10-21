@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AuthProvider } from "@/lib/providers/auth-provider";
@@ -28,12 +29,22 @@ export default async function RootLayout({
 }>) {
   // Fetch user once at root level for AuthDebugButton
   const user = await getCurrentUser()
+  const cookieStore = await cookies()
+  const expiresAtCookie = cookieStore.get('access_token_expires_at')?.value
+  let normalizedTokenExpiresAt: number | null = null
+
+  if (expiresAtCookie) {
+    const parsed = Number.parseInt(expiresAtCookie, 10)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      normalizedTokenExpiresAt = parsed
+    }
+  }
 
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
-          <AuthProvider initialUser={user}>
+          <AuthProvider initialUser={user} initialTokenExpiresAt={normalizedTokenExpiresAt}>
             {children}
             <AuthDebugButton />
           </AuthProvider>

@@ -9,26 +9,7 @@ import type { User } from '@/types/auth'
 type AuthProviderProps = {
   children: React.ReactNode
   initialUser: User | null
-}
-
-// Decode JWT to extract expiration
-function decodeJWT(token: string): { exp: number } | null {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return { exp: payload.exp || 0 }
-  } catch {
-    return null
-  }
-}
-
-// Get access_token from cookie
-function getAccessTokenFromCookie(): string | null {
-  if (typeof document === 'undefined') return null
-  const cookie = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('access_token='))
-  
-  return cookie ? cookie.split('=')[1] : null
+  initialTokenExpiresAt: number | null
 }
 
 /**
@@ -37,7 +18,7 @@ function getAccessTokenFromCookie(): string | null {
  * Responsibilities:
  * 1. Provides user data via Context (accessible everywhere with useUser())
  * 2. Syncs isAuthenticated to Zustand (for navbar reactive updates)
- * 3. Extracts token expiration from JWT cookie and stores in Zustand
+ * 3. Extracts token expiration from cookie metadata and stores in Zustand
  * 4. Starts automatic token refresh timer when user is logged in
  *
  * Architecture:
@@ -47,7 +28,7 @@ function getAccessTokenFromCookie(): string | null {
  *
  * Note: Redirection logic is handled in Server Components (layouts)
  */
-export function AuthProvider({ children, initialUser }: AuthProviderProps) {
+export function AuthProvider({ children, initialUser, initialTokenExpiresAt }: AuthProviderProps) {
   const setAuthenticated = useAuthStore((state) => state.setAuthenticated)
   const setTokenExpiration = useAuthStore((state) => state.setTokenExpiration)
   const clearTokenExpiration = useAuthStore((state) => state.clearTokenExpiration)
@@ -63,28 +44,26 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       return
     }
     
-    // Extract token expiration from cookie JWT
-    const token = getAccessTokenFromCookie()
-    if (!token) {
-      console.log('[AuthProvider] ⚠️  User authenticated but no access_token cookie found')
-      return
-    }
-    
-    const decoded = decodeJWT(token)
-    if (!decoded) {
-      console.log('[AuthProvider] ⚠️  Failed to decode JWT')
+    // Extract token expiration from cookie metadata
+    const expiresAt = initialTokenExpiresAt
+    if (!expiresAt) {
+      console.log('[AuthProvider] ⚠️  User authenticated but no access_token_expires_at value found')
       return
     }
     
     const now = Math.floor(Date.now() / 1000)
-    const expiresIn = decoded.exp - now
+    const expiresIn = expiresAt - now
+    if (expiresIn <= 0) {
+      console.log('[AuthProvider] ⚠️  access_token_expires_at already passed, skipping store update')
+      return
+    }
     
-    console.log('[AuthProvider] ✅ User authenticated, extracting token expiration from JWT')
-    console.log('[AuthProvider] Token expires at:', new Date(decoded.exp * 1000).toISOString())
+    console.log('[AuthProvider] ✅ User authenticated, extracting token expiration from cookie metadata')
+    console.log('[AuthProvider] Token expires at:', new Date(expiresAt * 1000).toISOString())
     console.log('[AuthProvider] Time until expiration:', expiresIn, 's')
     
     setTokenExpiration(expiresIn)
-  }, [initialUser, setAuthenticated, setTokenExpiration, clearTokenExpiration])
+  }, [initialUser, initialTokenExpiresAt, setAuthenticated, setTokenExpiration, clearTokenExpiration])
   
   // Timer automatique de refresh (s'active quand tokenExpiresAt est défini)
   useTokenRefresh()
