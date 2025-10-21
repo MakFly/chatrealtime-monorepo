@@ -110,7 +110,7 @@ class GoogleController extends AbstractController
             $this->refreshTokenService->createToken(
                 $user,
                 $plaintextToken,
-                (int) ($_ENV['JWT_REFRESH_TOKEN_TTL'] ?? 2592000),
+                (int) ($_ENV['JWT_REFRESH_TOKEN_TTL'] ?? 2592000), // 30 jours
                 $request->getClientIp(),
                 $request->headers->get('User-Agent', 'unknown')
             );

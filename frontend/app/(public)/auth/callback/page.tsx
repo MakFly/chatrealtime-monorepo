@@ -1,129 +1,89 @@
+/**
+ * Google OAuth Callback Handler
+ *
+ * After successful Google authentication, the backend redirects here with tokens.
+ * This page extracts the tokens from URL parameters and stores them in Next.js cookies.
+ */
+
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { handleGoogleCallbackAction } from '@/lib/actions/auth'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { GalleryVerticalEnd } from 'lucide-react'
-import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 
-export default function CallbackPage() {
+export default function AuthCallbackPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
-  const [isProcessing, setIsProcessing] = useState(true)
 
   useEffect(() => {
-    const processCallback = async () => {
+    const handleCallback = async () => {
       try {
-        // Get hash fragments from URL (e.g., #access_token=...&refresh_token=...)
-        const hash = window.location.hash.substring(1)
-        const params = new URLSearchParams(hash)
+        // Get tokens from URL parameters (sent by backend)
+        const accessToken = searchParams.get('access_token')
+        const refreshToken = searchParams.get('refresh_token')
+        const expiresIn = searchParams.get('expires_in')
 
-        console.log('Callback URL hash:', hash)
-        console.log('Parsed params:', Object.fromEntries(params.entries()))
-
-        // Check if we have any parameters at all
-        if (hash.length === 0) {
-          console.log('No callback parameters found, redirecting to login')
-          router.push('/login')
+        if (!accessToken || !refreshToken || !expiresIn) {
+          setError('Missing authentication tokens')
           return
         }
 
-        const accessToken = params.get('access_token')
-        const refreshToken = params.get('refresh_token')
-        const expiresIn = params.get('expires_in')
-        const errorParam = params.get('error')
-        const errorMessage = params.get('message')
+        // Store tokens in Next.js cookies via server action
+        const response = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accessToken,
+            refreshToken,
+            expiresIn: parseInt(expiresIn, 10),
+          }),
+        })
 
-        if (errorParam) {
-          // Decode the error message
-          const decodedMessage = errorMessage
-            ? decodeURIComponent(errorMessage)
-            : 'Google authentication failed. Please try again.'
-          console.error('Authentication error:', errorParam, decodedMessage)
-          setError(decodedMessage)
-          setIsProcessing(false)
+        if (!response.ok) {
+          setError('Failed to create session')
           return
         }
 
-        if (!accessToken || !refreshToken) {
-          console.error('Missing tokens:', { accessToken: !!accessToken, refreshToken: !!refreshToken })
-          setError('Invalid callback parameters. Please try again.')
-          setIsProcessing(false)
-          return
-        }
-
-        // Call server action to handle the callback
-        // Use default expires_in if not provided (1 hour = 3600 seconds)
-        const result = await handleGoogleCallbackAction(
-          accessToken,
-          refreshToken,
-          expiresIn ? parseInt(expiresIn, 10) : 3600
-        )
-
-        if (result?.error) {
-          console.error('Server action error:', result.error)
-          setError(result.error)
-          setIsProcessing(false)
-        }
-
-        // The server action will redirect to dashboard on success
-        // Note: redirect() throws NEXT_REDIRECT error, which is expected
+        // Redirect to dashboard/chat
+        router.push('/chat')
       } catch (err) {
-        // Check if this is a Next.js redirect error (expected behavior)
-        if (err && typeof err === 'object' && 'digest' in err) {
-          // This is a Next.js redirect, let it propagate
-          throw err
-        }
-
-        console.error('Callback processing error:', err)
-        setError('An unexpected error occurred. Please try again.')
-        setIsProcessing(false)
+        console.error('Callback error:', err)
+        setError('An error occurred during authentication')
       }
     }
 
-    processCallback()
-  }, [router])
+    handleCallback()
+  }, [searchParams, router])
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive mb-4">
+            Authentication Error
+          </h1>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <Link href="/" className="flex items-center gap-2 self-center font-medium">
-          <div className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
-            <GalleryVerticalEnd className="size-4" />
-          </div>
-          Chat Realtime
-        </Link>
-
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">
-              {isProcessing ? 'Signing you in...' : 'Authentication Error'}
-            </CardTitle>
-            <CardDescription>
-              {isProcessing
-                ? 'Please wait while we complete your Google sign-in'
-                : error || 'An error occurred'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isProcessing ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-              </div>
-            ) : (
-              <div className="text-center space-y-4">
-                <p className="text-sm text-muted-foreground">{error}</p>
-                <Link
-                  href="/login"
-                  className="inline-block text-sm font-medium text-primary hover:underline"
-                >
-                  Back to login
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+        <p className="text-lg text-muted-foreground">
+          Completing authentication...
+        </p>
       </div>
     </div>
   )

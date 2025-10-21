@@ -1,66 +1,166 @@
-"use client"
+/**
+ * Chat Header Component
+ * Displays current chat room information and connection status
+ */
 
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Globe, Sparkles, Plus } from "lucide-react"
-import type { ChatSettings } from "./chat-interface"
+'use client'
 
-interface ChatHeaderProps {
-  settings: ChatSettings
-  onSettingsChange: (settings: ChatSettings) => void
-  onNewChat: () => void
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { MoreVertical, Users, Settings, LogOut } from 'lucide-react'
+import type { ChatRoom } from '@/types/chat'
+import { cn } from '@/lib/utils'
+
+type ChatHeaderProps = {
+  currentRoom: ChatRoom | null
+  connected?: boolean
+  onOpenSettings?: () => void
+  onLeaveRoom?: () => void
 }
 
-export function ChatHeader({ settings, onSettingsChange, onNewChat }: ChatHeaderProps) {
+/**
+ * Get room display name based on type
+ */
+function getRoomDisplayName(room: ChatRoom): string {
+  return room.name
+}
+
+/**
+ * Get room initials for avatar
+ */
+function getRoomInitials(room: ChatRoom): string {
+  return room.name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+/**
+ * Get room type badge variant
+ */
+function getRoomTypeBadgeVariant(type: ChatRoom['type']): 'default' | 'secondary' | 'outline' {
+  switch (type) {
+    case 'direct':
+      return 'default'
+    case 'group':
+      return 'secondary'
+    case 'public':
+      return 'outline'
+    default:
+      return 'secondary'
+  }
+}
+
+export function ChatHeader({
+  currentRoom,
+  connected = true,
+  onOpenSettings,
+  onLeaveRoom,
+}: ChatHeaderProps) {
+  // Empty state - no room selected
+  if (!currentRoom) {
+    return (
+      <header className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="bg-muted">?</AvatarFallback>
+          </Avatar>
+          <div>
+            <h2 className="text-sm font-semibold text-muted-foreground">
+              Aucune conversation sélectionnée
+            </h2>
+          </div>
+        </div>
+      </header>
+    )
+  }
+
+  const participantCount = currentRoom.participants?.length || 0
+
   return (
-    <header className="flex items-center justify-between border-b border-border px-2 md:px-4 py-2 md:py-3 gap-2 flex-wrap">
-      <div className="flex items-center gap-2 md:gap-4 flex-wrap">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 md:h-9 gap-1 md:gap-2 bg-transparent text-xs md:text-sm"
-          onClick={onNewChat}
-        >
-          <Plus className="h-3 w-3 md:h-4 md:w-4" />
-          <span className="hidden sm:inline">Nouvelle conversation</span>
-          <span className="sm:hidden">Nouveau</span>
-        </Button>
+    <header className="flex items-center justify-between border-b px-4 py-3">
+      {/* Room Info */}
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarFallback>{getRoomInitials(currentRoom)}</AvatarFallback>
+        </Avatar>
 
-        <Select value={settings.model} onValueChange={(value) => onSettingsChange({ ...settings, model: value })}>
-          <SelectTrigger className="w-[100px] md:w-[140px] h-8 md:h-9 text-xs md:text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="GPT-5">GPT-5</SelectItem>
-            <SelectItem value="GPT-4">GPT-4</SelectItem>
-            <SelectItem value="Claude 3.5">Claude 3.5</SelectItem>
-            <SelectItem value="Mistral Large">Mistral Large</SelectItem>
-            <SelectItem value="Gemini Pro">Gemini Pro</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-0.5">
+            <h2 className="text-sm font-semibold truncate">
+              {getRoomDisplayName(currentRoom)}
+            </h2>
+            <Badge variant={getRoomTypeBadgeVariant(currentRoom.type)} className="text-xs shrink-0">
+              {currentRoom.type === 'direct' && 'Direct'}
+              {currentRoom.type === 'group' && 'Groupe'}
+              {currentRoom.type === 'public' && 'Public'}
+            </Badge>
+          </div>
 
-        <Button
-          variant={settings.webSearchEnabled ? "default" : "outline"}
-          size="sm"
-          className="h-8 md:h-9 gap-1 md:gap-2 text-xs md:text-sm"
-          onClick={() =>
-            onSettingsChange({
-              ...settings,
-              webSearchEnabled: !settings.webSearchEnabled,
-            })
-          }
-        >
-          <Globe className="h-3 w-3 md:h-4 md:w-4" />
-          <span className="hidden sm:inline">Web Search</span>
-          <span className="sm:hidden">Web</span>
-        </Button>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {/* Connection Status */}
+            <div className="flex items-center gap-1.5">
+              <div
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  connected ? 'bg-green-500' : 'bg-gray-400'
+                )}
+              />
+              <span>{connected ? 'En ligne' : 'Hors ligne'}</span>
+            </div>
+
+            {/* Participant Count */}
+            {currentRoom.type !== 'direct' && (
+              <>
+                <span>•</span>
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  <span>
+                    {participantCount} participant{participantCount > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-muted-foreground">
-        <Sparkles className="h-3 w-3 md:h-4 md:w-4" />
-        <span className="font-mono text-xs md:text-sm">{settings.tokensRemaining.toLocaleString()}</span>
-        <span className="hidden sm:inline">tokens</span>
-      </div>
+      {/* Actions Menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+            <MoreVertical className="h-4 w-4" />
+            <span className="sr-only">Options de la conversation</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {onOpenSettings && (
+            <DropdownMenuItem onClick={onOpenSettings}>
+              <Settings className="mr-2 h-4 w-4" />
+              Paramètres
+            </DropdownMenuItem>
+          )}
+          {currentRoom.type !== 'direct' && onLeaveRoom && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Quitter la conversation
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   )
 }

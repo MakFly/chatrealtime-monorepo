@@ -1,0 +1,69 @@
+# The Caddyfile is an easy way to configure FrankenPHP and the Caddy web server.
+#
+# https://frankenphp.dev/docs/config
+# https://caddyserver.com/docs/caddyfile
+
+{
+	skip_install_trust
+
+	# Enable full-duplex for Server-Sent Events (SSE) support
+	servers {
+		enable_full_duplex
+	}
+
+	{$CADDY_GLOBAL_OPTIONS}
+
+	frankenphp {
+		{$FRANKENPHP_CONFIG}
+	}
+}
+
+{$CADDY_EXTRA_CONFIG}
+
+{$SERVER_NAME:localhost} {
+	log {
+		# Redact the authorization query parameter that can be set by Mercure
+		format filter {
+			request>uri query {
+				replace authorization REDACTED
+			}
+		}
+	}
+
+	root {$SERVER_ROOT:public/}
+	encode zstd br gzip
+
+	# Mercure Hub enabled for real-time chat
+	mercure {
+		# Transport to use (default to Bolt)
+		transport_url {$MERCURE_TRANSPORT_URL:bolt:///data/mercure.db}
+		# Publisher JWT key
+		publisher_jwt {env.MERCURE_JWT_SECRET} {
+			alg HS256
+		}
+		# Subscriber JWT key (same as publisher for simplicity)
+		subscriber_jwt {env.MERCURE_JWT_SECRET} {
+			alg HS256
+		}
+		# Allow anonymous subscribers (JWT required for private topics)
+		anonymous
+		# Enable the subscription API
+		subscriptions
+		# CORS origins for frontend
+		cors_origins http://localhost:3000 http://127.0.0.1:3000
+		# Extra directives
+		{$MERCURE_EXTRA_DIRECTIVES}
+	}
+
+	{$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+	php_server {
+		#worker /path/to/your/worker.php
+	}
+}
+
+# As an alternative to editing the above site block, you can add your own site
+# block files in the Caddyfile.d directory, and they will be included as long
+# as they use the .caddyfile extension.
+
+import Caddyfile.d/*.caddyfile

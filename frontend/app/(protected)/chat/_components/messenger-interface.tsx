@@ -1,3 +1,9 @@
+/**
+ * ⚠️ MOCK INTERFACE - NE PAS UTILISER EN PRODUCTION
+ * Cette interface utilise des données factices pour les tests
+ * Utilisez RealChatInterface pour l'intégration API réelle
+ */
+
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -13,7 +19,7 @@ import {
   type ConversationMessage,
 } from "@/lib/mock-data"
 
-export function MessengerInterface() {
+export function MessengerInterfaceMock() {
   const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS)
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<Record<string, ConversationMessage[]>>(MOCK_CONVERSATIONS)
@@ -139,7 +145,7 @@ export function MessengerInterface() {
 
   return (
     <SidebarProvider>
-      <AppSidebar activeContactId={selectedContactId} onContactSelect={handleSelectContact} />
+      <AppSidebar />
 
       <SidebarInset>
         <div className="flex h-screen flex-col">

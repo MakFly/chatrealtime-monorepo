@@ -1,21 +1,124 @@
-import type React from "react"
-import type { Message } from "./chat-interface"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { User, Bot } from "lucide-react"
-import { cn } from "@/lib/utils"
+/**
+ * Chat Messages Component
+ * Displays real-time chat messages with author info and timestamps
+ */
 
-interface ChatMessagesProps {
+'use client'
+
+import type React from 'react'
+import type { Message } from '@/types/chat'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
+
+type ChatMessagesProps = {
   messages: Message[]
-  isTyping: boolean
+  isLoading?: boolean
+  currentUserId?: string | null
   messagesEndRef: React.RefObject<HTMLDivElement>
 }
 
-export function ChatMessages({ messages, isTyping, messagesEndRef }: ChatMessagesProps) {
-  if (messages.length === 0) {
+/**
+ * Format timestamp to human-readable format
+ * Example: "14:32" or "Hier 14:32" or "12/01 14:32"
+ */
+function formatTimestamp(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+
+  const timeStr = date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  if (hours < 24) {
+    return timeStr
+  }
+
+  if (days === 1) {
+    return `Hier ${timeStr}`
+  }
+
+  if (days < 7) {
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/**
+ * Get initials from user name or email
+ */
+function getInitials(name: string | null, email: string): string {
+  if (name) {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+  return email.slice(0, 2).toUpperCase()
+}
+
+/**
+ * Loading skeleton for messages
+ */
+function MessageSkeleton() {
+  return (
+    <div className="flex gap-3 animate-in fade-in">
+      <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-16 w-full max-w-md" />
+      </div>
+    </div>
+  )
+}
+
+export function ChatMessages({
+  messages,
+  isLoading = false,
+  currentUserId,
+  messagesEndRef,
+}: ChatMessagesProps) {
+  // Empty state
+  if (!isLoading && messages.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <h1 className="mb-8 text-2xl md:text-4xl font-medium text-balance px-4">Comment puis-je vous aider ?</h1>
+        <div className="text-center px-4">
+          <h1 className="mb-2 text-2xl md:text-3xl font-semibold">
+            Bienvenue dans le chat
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Commencez une conversation en envoyant un message
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
+          <MessageSkeleton />
+          <MessageSkeleton />
+          <MessageSkeleton />
         </div>
       </div>
     )
@@ -24,89 +127,76 @@ export function ChatMessages({ messages, isTyping, messagesEndRef }: ChatMessage
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-4xl px-2 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              "flex gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500",
-              message.role === "user" ? "flex-row-reverse" : "flex-row",
-            )}
-          >
-            <Avatar className="h-6 w-6 md:h-8 md:w-8 shrink-0">
-              {message.role === "assistant" ? (
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  <Bot className="h-3 w-3 md:h-4 md:w-4" />
-                </AvatarFallback>
-              ) : (
-                <AvatarFallback className="bg-muted">
-                  <User className="h-3 w-3 md:h-4 md:w-4" />
-                </AvatarFallback>
+        {messages.map((message) => {
+          // ✅ API now returns full User object with serialization groups
+          const author = message.author
+          
+          // Convert IDs to strings for comparison (backend IDs are numbers, frontend currentUserId might be string)
+          const isCurrentUser = currentUserId !== null && String(currentUserId) === String(author.id)
+          const initials = getInitials(author.name, author.email)
+
+          return (
+            <div
+              key={message.id}
+              className={cn(
+                'flex gap-2 md:gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300',
+                isCurrentUser ? 'flex-row-reverse' : 'flex-row'
               )}
-            </Avatar>
-
-            <div className={cn("flex-1 min-w-0 flex", message.role === "user" ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-[90%] md:max-w-[70%] space-y-2",
-                  message.role === "user" ? "flex flex-col items-end" : "",
-                )}
-              >
-                {message.files && message.files.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {message.files.map((file, idx) => (
-                      <div key={idx} className="rounded-lg border border-border p-2 bg-muted/50 max-w-xs">
-                        {file.type.startsWith("image/") ? (
-                          <img
-                            src={file.url || "/placeholder.svg"}
-                            alt={file.name}
-                            className="rounded max-h-48 object-cover"
-                          />
-                        ) : (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="truncate">{file.name}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div
+            >
+              {/* Author Avatar */}
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarFallback
                   className={cn(
-                    "rounded-2xl px-3 md:px-4 py-2 md:py-3 break-words overflow-wrap-anywhere",
-                    message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
+                    isCurrentUser
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
                   )}
                 >
-                  <p className="text-xs md:text-sm leading-relaxed whitespace-pre-wrap break-all">{message.content}</p>
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+
+              {/* Message Content */}
+              <div
+                className={cn(
+                  'flex-1 min-w-0 flex flex-col gap-1',
+                  isCurrentUser ? 'items-end' : 'items-start'
+                )}
+              >
+                {/* Author Name & Timestamp */}
+                <div
+                  className={cn(
+                    'flex items-center gap-2 px-1',
+                    isCurrentUser ? 'flex-row-reverse' : 'flex-row'
+                  )}
+                >
+                  <span className="text-xs font-medium text-foreground">
+                    {author.name || author.email.split('@')[0]}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatTimestamp(message.createdAt)}
+                  </span>
                 </div>
 
-                {message.role === "assistant" && message.responseTime && (
-                  <p className="text-xs text-muted-foreground px-2">
-                    Réponse en {(message.responseTime / 1000).toFixed(2)}s
+                {/* Message Bubble */}
+                <div
+                  className={cn(
+                    'rounded-2xl px-3 md:px-4 py-2 md:py-2.5 max-w-[85%] md:max-w-[70%] wrap-break-word',
+                    isCurrentUser
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground'
+                  )}
+                >
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {message.content}
                   </p>
-                )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
-        {isTyping && (
-          <div className="flex gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <Avatar className="h-6 w-6 md:h-8 md:w-8 shrink-0">
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                <Bot className="h-3 w-3 md:h-4 md:w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="rounded-2xl px-3 md:px-4 py-2 md:py-3 bg-muted">
-              <div className="flex gap-1">
-                <div className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]" />
-                <div className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]" />
-                <div className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce" />
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* Scroll anchor */}
         <div ref={messagesEndRef} />
       </div>
     </div>
