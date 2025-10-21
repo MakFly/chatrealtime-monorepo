@@ -30,8 +30,8 @@ export function useMercureToken(enabled = true) {
       return data.token
     },
     enabled,
-    staleTime: 1000 * 60 * 30, // 30 minutes (token expires in 1 hour)
-    gcTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 60 * 5.5, // 5.5 hours (token expires in 6 hours)
+    gcTime: 1000 * 60 * 60 * 6, // 6 hours
     retry: 3,
   })
 }

@@ -48,7 +48,7 @@ final class MercureJwtGenerator
         // Create JWT token
         $token = $this->jwtConfig->builder()
             ->issuedAt($now)
-            ->expiresAt($now->modify('+1 hour'))
+            ->expiresAt($now->modify('+6 hours'))
             ->withClaim('mercure', [
                 'subscribe' => $topics,
             ])
@@ -70,7 +70,7 @@ final class MercureJwtGenerator
 
         $token = $this->jwtConfig->builder()
             ->issuedAt($now)
-            ->expiresAt($now->modify('+1 hour'))
+            ->expiresAt($now->modify('+6 hours'))
             ->withClaim('mercure', [
                 'subscribe' => [$topic],
             ])

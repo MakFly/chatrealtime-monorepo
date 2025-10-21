@@ -10,10 +10,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useChatStore } from '@/lib/stores/use-chat-store'
 import { useChatMessages } from '@/lib/hooks/use-chat-messages'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
+import { useMercureConnectionMonitor } from '@/lib/hooks/use-mercure-connection-monitor'
 import { ChatHeader } from './chat-header'
 import { ChatMessages } from './chat-messages'
 import { ChatInput } from './chat-input'
 import { AppSidebar } from './app-sidebar'
+import { MercureConnectionLostDialog } from './mercure-connection-lost-dialog'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
 type RealChatInterfaceProps = {
@@ -48,6 +50,13 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
     mercureToken: initialMercureToken,
     enabled: currentRoomId !== null && currentRoomId > 0,
   })
+
+  // Monitor Mercure connection and show dialog if connection lost
+  const {
+    showDialog,
+    handleContinue,
+    handleQuit,
+  } = useMercureConnectionMonitor({ error })
 
   // Force refetch when room changes
   // React Query doesn't always refetch when a query goes from disabled to enabled
@@ -124,17 +133,15 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
               </div>
             </div>
           )}
-
-          {/* Error display */}
-          {error && (
-            <div className="border-t bg-destructive/10 p-4">
-              <p className="text-sm text-destructive text-center">
-                Erreur: {error.message}
-              </p>
-            </div>
-          )}
         </div>
       </SidebarInset>
+
+      {/* Mercure Connection Lost Dialog */}
+      <MercureConnectionLostDialog
+        open={showDialog}
+        onContinue={handleContinue}
+        onQuit={handleQuit}
+      />
     </SidebarProvider>
   )
 }
