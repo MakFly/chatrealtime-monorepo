@@ -3,15 +3,45 @@ import type { Session, User } from '@/types/auth'
 
 const ACCESS_TOKEN_COOKIE = 'access_token'
 const REFRESH_TOKEN_COOKIE = 'refresh_token'
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 // 7 days in seconds
 
-/**
- * Cookie configuration for secure session management
- */
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+const baseSecureFlag = process.env.NODE_ENV === 'production'
+
+const accessTokenCookieOptions = {
+  httpOnly: false,
+  secure: baseSecureFlag,
   sameSite: 'lax' as const,
   path: '/',
+}
+
+const refreshTokenCookieOptions = {
+  httpOnly: true,
+  secure: baseSecureFlag,
+  sameSite: 'strict' as const,
+  path: '/', // Path remains / so SSR pages receive the cookie for server-side validation
+}
+
+type DecodedJWT = {
+  exp: number
+  iat: number
+}
+
+function decodeJWT(token: string): DecodedJWT | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+
+    const payload = JSON.parse(
+      Buffer.from(parts[1], 'base64').toString('utf-8')
+    )
+
+    return {
+      exp: payload.exp || 0,
+      iat: payload.iat || 0,
+    }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -28,13 +58,15 @@ export async function getSession(): Promise<Session | null> {
     return null
   }
 
-  // Calculate expiration timestamp (tokens typically expire in 1 hour = 3600 seconds)
-  const expiresAt = Date.now() + 3600 * 1000
+  const decoded = decodeJWT(accessToken)
+  if (!decoded || !decoded.exp) {
+    return null
+  }
 
   return {
     accessToken,
     refreshToken,
-    expiresAt,
+    expiresAt: decoded.exp * 1000,
   }
 }
 
@@ -71,31 +103,30 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 /**
- * Create or update a session by setting secure HTTP-only cookies
+ * Create or update a session by setting secure cookies
  * Only stores tokens - user data is fetched from API when needed
  */
 export async function setSession(
   accessToken: string,
   refreshToken: string,
-  expiresIn: number = 3600 // Default: 1 hour in seconds
+  expiresIn: number = 300 // Default: 5 minutes in seconds
 ): Promise<void> {
   const cookieStore = await cookies()
 
-  // Calculate expiration date
-  const expiresAt = new Date(Date.now() + expiresIn * 1000)
+  const normalizedExpiresIn = Math.max(1, expiresIn)
+  const accessTokenExpiry = new Date(Date.now() + normalizedExpiresIn * 1000)
+  const refreshTokenExpiry = new Date(Date.now() + REFRESH_TOKEN_MAX_AGE * 1000)
 
-  // Set access token cookie
   cookieStore.set(ACCESS_TOKEN_COOKIE, accessToken, {
-    ...cookieOptions,
-    maxAge: expiresIn,
-    expires: expiresAt,
+    ...accessTokenCookieOptions,
+    maxAge: normalizedExpiresIn,
+    expires: accessTokenExpiry,
   })
 
-  // Set refresh token cookie (30 days)
   cookieStore.set(REFRESH_TOKEN_COOKIE, refreshToken, {
-    ...cookieOptions,
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    ...refreshTokenCookieOptions,
+    maxAge: REFRESH_TOKEN_MAX_AGE,
+    expires: refreshTokenExpiry,
   })
 }
 

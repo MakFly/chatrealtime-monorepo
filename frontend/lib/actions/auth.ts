@@ -73,16 +73,18 @@ export async function loginAction(formData: FormData) {
       authData.refresh_token,
       authData.expires_in
     )
+
+    // Return success with expires_in so client can store it in Zustand
+    return { 
+      success: true,
+      expires_in: authData.expires_in 
+    }
   } catch (error) {
     console.error('Login error:', error)
     return {
       error: 'An unexpected error occurred. Please try again.',
     }
   }
-
-  // Redirect to dashboard or requested page
-  const redirectTo = formData.get('redirect') as string | null
-  redirect(redirectTo || '/dashboard')
 }
 
 /**

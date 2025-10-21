@@ -64,45 +64,42 @@ export async function apiClient<T = unknown>(
   })
 
   // Handle token refresh on 401 Unauthorized
-  if (response.status === 401 && session?.refreshToken) {
-    console.log('Access token expired, attempting refresh...')
+  if (response.status === 401) {
+    console.log('[API] 401 Unauthorized, attempting refresh...')
 
     try {
-      // Attempt to refresh the token
-      const refreshResponse = await fetch(`${API_URL}${API_PREFIX}/auth/refresh`, {
+      // Attempt to refresh the token via our Next.js API route
+      const refreshResponse = await fetch('/api/auth/refresh', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          refresh_token: session.refreshToken,
-        }),
+        credentials: 'include',
       })
 
       if (refreshResponse.ok) {
-        const authData: AuthResponse = await refreshResponse.json()
+        console.log('[API] Token refreshed, retrying original request...')
+        
+        // Get new token from cookie
+        const token = typeof document !== 'undefined'
+          ? document.cookie
+              .split('; ')
+              .find(row => row.startsWith('access_token='))
+              ?.split('=')[1]
+          : null
 
-        // Update session with new tokens
-        await setSession(
-          authData.access_token,
-          authData.refresh_token,
-          authData.expires_in
-        )
-
-        // Retry the original request with new token
-        headers['Authorization'] = `Bearer ${authData.access_token}`
-        response = await fetch(url, {
-          ...options,
-          headers,
-        })
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+          response = await fetch(url, {
+            ...options,
+            headers,
+          })
+        }
       } else {
         // Refresh failed, clear session
-        console.error('Token refresh failed, clearing session')
+        console.error('[API] Token refresh failed, clearing session')
         await clearSession()
         throw new ApiError('Session expired, please login again', 401)
       }
     } catch (error) {
-      console.error('Error refreshing token:', error)
+      console.error('[API] Error refreshing token:', error)
       await clearSession()
       throw new ApiError('Session expired, please login again', 401)
     }

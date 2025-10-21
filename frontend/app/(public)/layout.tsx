@@ -1,18 +1,19 @@
-import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { PublicNavbar } from '@/components/layout/public-navbar'
 
-export default async function PublicLayout({
+export default function PublicLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Check if user is already authenticated
-  const session = await getSession()
-
-  // Redirect to dashboard if already logged in
-  if (session) {
-    redirect('/dashboard')
-  }
-
-  return <>{children}</>
+  return (
+    <div className="flex min-h-screen flex-col">
+      <PublicNavbar />
+      <main className="flex-1">{children}</main>
+      <footer className="border-t py-8 px-4">
+        <div className="container mx-auto text-center text-muted-foreground">
+          <p>&copy; 2025 Chat Realtime. Built with Next.js 15 & Symfony 7.3</p>
+        </div>
+      </footer>
+    </div>
+  )
 }

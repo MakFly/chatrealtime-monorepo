@@ -1,16 +1,16 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 
 export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Check if user is authenticated
-  const session = await getSession()
+  // Check authentication - user already fetched in root layout
+  const user = await getCurrentUser()
 
   // Redirect to login if not authenticated
-  if (!session) {
+  if (!user) {
     redirect('/login')
   }
 

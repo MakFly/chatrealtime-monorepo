@@ -58,11 +58,32 @@ class SecurityHeadersSubscriber implements EventSubscriberInterface
             $response->headers->set('Expires', '0');
         }
 
-        // Content-Security-Policy pour les API
-        $response->headers->set(
-            'Content-Security-Policy',
-            "default-src 'none'; frame-ancestors 'none'"
-        );
+        // Content-Security-Policy adapté à l'environnement
+        $response->headers->set('Content-Security-Policy', $this->getContentSecurityPolicy());
+    }
+
+    private function getContentSecurityPolicy(): string
+    {
+        if ($this->environment === 'dev') {
+            // Développement : permissif pour Web Debug Toolbar et outils de dev
+            return implode('; ', [
+                "default-src 'self'",
+                "img-src 'self' data: https:",
+                "style-src 'self' 'unsafe-inline'",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                "connect-src 'self'",
+                "font-src 'self' data:",
+                "frame-ancestors 'none'",
+            ]);
+        }
+
+        // Production : restrictif pour API REST
+        return implode('; ', [
+            "default-src 'none'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]);
     }
 
     private function isSensitivePath(string $path): bool

@@ -41,7 +41,19 @@ export function LoginForm({ className, error, redirect }: LoginFormProps) {
   const handleFormSubmit = async (formData: FormData) => {
     setIsFormLoading(true)
     try {
-      await loginAction(formData)
+      const result = await loginAction(formData)
+      
+      // If there's an error, loginAction returns it instead of redirecting
+      if (result?.error) {
+        setIsFormLoading(false)
+        // Error is displayed by the form
+        return
+      }
+      
+      // Force hard reload to ensure Server Components fetch user
+      // and AuthProvider starts token refresh timer
+      // Token expiration will be extracted from JWT and stored by AuthProvider
+      window.location.href = formData.get('redirect') as string || '/dashboard'
     } catch (error) {
       setIsFormLoading(false)
     }
