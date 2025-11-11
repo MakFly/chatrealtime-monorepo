@@ -13,10 +13,12 @@ use Doctrine\ORM\QueryBuilder;
 use Symfony\Bundle\SecurityBundle\Security;
 
 /**
- * Doctrine Extension to filter messages based on user participation in chat rooms.
+ * Doctrine Extension to filter messages based on user access to chat rooms.
  *
  * This extension automatically restricts message queries to only return messages
- * from chat rooms where the current user is a participant.
+ * from chat rooms where the current user has access:
+ * - Chat rooms where the user is a participant (private/group)
+ * - All public chat rooms (auto-join for all authenticated users)
  *
  * This is more efficient than using a Voter because it filters at the SQL level
  * instead of loading all messages and filtering them in PHP.
@@ -52,11 +54,19 @@ final class MessageAccessExtension implements QueryCollectionExtensionInterface
         $participantAlias = $queryNameGenerator->generateJoinAlias('participant');
 
         // Join with chat_participant to filter messages
-        // Only return messages where the user is a participant of the chat room
+        // Return messages where:
+        // 1. User is a participant of the chat room (private/group rooms)
+        // 2. OR the chat room is public (auto-join for all authenticated users)
         $queryBuilder
             ->innerJoin(sprintf('%s.chatRoom', $rootAlias), 'chatRoom')
-            ->innerJoin('chatRoom.participants', $participantAlias)
-            ->andWhere(sprintf('%s.user = :currentUser', $participantAlias))
-            ->setParameter('currentUser', $user);
+            ->leftJoin('chatRoom.participants', $participantAlias)
+            ->andWhere(
+                $queryBuilder->expr()->orX(
+                    sprintf('%s.user = :currentUser', $participantAlias),
+                    'chatRoom.type = :publicType'
+                )
+            )
+            ->setParameter('currentUser', $user)
+            ->setParameter('publicType', 'public');
     }
 }

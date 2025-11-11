@@ -12,9 +12,9 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 /**
  * Voter for ChatRoom authorization.
  *
- * - VIEW: User must be a participant
- * - EDIT: User must be an admin of the room
- * - DELETE: User must be an admin of the room
+ * - VIEW: User must be a participant OR room is public (auto-join)
+ * - EDIT: User must be an admin of the room OR ROLE_ADMIN for public rooms
+ * - DELETE: User must be an admin of the room OR ROLE_ADMIN for public rooms
  */
 final class ChatRoomVoter extends Voter
 {
@@ -44,19 +44,43 @@ final class ChatRoomVoter extends Voter
 
         return match ($attribute) {
             self::VIEW => $this->canView($chatRoom, $user),
-            self::EDIT, self::DELETE => $this->canEdit($chatRoom, $user),
+            self::EDIT => $this->canEdit($chatRoom, $user),
+            self::DELETE => $this->canDelete($chatRoom, $user),
             default => false,
         };
     }
 
     private function canView(ChatRoom $chatRoom, User $user): bool
     {
+        // Public rooms are accessible to all authenticated users (auto-join)
+        if ($chatRoom->getType() === 'public') {
+            return true;
+        }
+
+        // Private and group rooms require explicit participation
         return $this->isParticipant($chatRoom, $user);
     }
 
     private function canEdit(ChatRoom $chatRoom, User $user): bool
     {
-        return $this->isAdmin($chatRoom, $user);
+        // Global admins can edit any room
+        if ($this->isGlobalAdmin($user)) {
+            return true;
+        }
+
+        // Room participants with 'admin' role can edit
+        return $this->isRoomAdmin($chatRoom, $user);
+    }
+
+    private function canDelete(ChatRoom $chatRoom, User $user): bool
+    {
+        // For PUBLIC rooms: only global admins (ROLE_ADMIN) can delete
+        if ($chatRoom->getType() === 'public') {
+            return $this->isGlobalAdmin($user);
+        }
+
+        // For private/group rooms: room admin can delete
+        return $this->isRoomAdmin($chatRoom, $user);
     }
 
     private function isParticipant(ChatRoom $chatRoom, User $user): bool
@@ -70,7 +94,7 @@ final class ChatRoomVoter extends Voter
         return false;
     }
 
-    private function isAdmin(ChatRoom $chatRoom, User $user): bool
+    private function isRoomAdmin(ChatRoom $chatRoom, User $user): bool
     {
         foreach ($chatRoom->getParticipants() as $participant) {
             if ($participant->getUser() === $user && $participant->isAdmin()) {
@@ -79,5 +103,18 @@ final class ChatRoomVoter extends Voter
         }
 
         return false;
+    }
+
+    private function isGlobalAdmin(User $user): bool
+    {
+        return in_array('ROLE_ADMIN', $user->getRoles(), true);
+    }
+
+    /**
+     * @deprecated Use isRoomAdmin() instead
+     */
+    private function isAdmin(ChatRoom $chatRoom, User $user): bool
+    {
+        return $this->isRoomAdmin($chatRoom, $user);
     }
 }

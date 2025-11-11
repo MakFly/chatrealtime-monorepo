@@ -38,8 +38,8 @@ final class MessageProcessor implements ProcessorInterface
      */
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
     {
-        // Only process on POST (create)
-        if ($operation->getName() === '_api_/messages{._format}_post') {
+        // Only process on POST (create) - check if it's a Post operation
+        if ($operation instanceof \ApiPlatform\Metadata\Post) {
             $this->validateAndSetAuthor($data);
         }
 
@@ -47,7 +47,7 @@ final class MessageProcessor implements ProcessorInterface
         $result = $this->persistProcessor->process($data, $operation, $uriVariables, $context);
 
         // ✅ Publish to Mercure after persistence (only on POST/create)
-        if ($operation->getName() === '_api_/messages{._format}_post' && $data instanceof Message) {
+        if ($operation instanceof \ApiPlatform\Metadata\Post && $data instanceof Message) {
             $this->publishToMercure($data);
         }
 
@@ -65,13 +65,19 @@ final class MessageProcessor implements ProcessorInterface
         // Set the author
         $message->setAuthor($user);
 
-        // Validate that user is a participant of the chat room
+        // Validate that user has access to the chat room
         $chatRoom = $message->getChatRoom();
 
         if ($chatRoom === null) {
             throw new AccessDeniedHttpException('Chat room is required.');
         }
 
+        // For PUBLIC rooms: all authenticated users can send messages (auto-join)
+        if ($chatRoom->getType() === 'public') {
+            return; // Access granted
+        }
+
+        // For PRIVATE and GROUP rooms: user must be an explicit participant
         $isParticipant = false;
         foreach ($chatRoom->getParticipants() as $participant) {
             if ($participant->getUser() === $user) {

@@ -1,0 +1,124 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Service;
+
+use App\Entity\ChatParticipantV2;
+use App\Entity\ChatRoomV2;
+use App\Entity\User;
+use App\Repository\ChatRoomV2Repository;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpKernel\Exception\BadRequestException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+/**
+ * ProductChatService - Business logic for product-based chat rooms.
+ *
+ * Handles the creation and retrieval of chat rooms for marketplace products.
+ * Implements "find or create" pattern to prevent duplicate rooms.
+ */
+final class ProductChatService implements ProductChatServiceInterface
+{
+    public function __construct(
+        private readonly ChatRoomV2Repository $chatRoomV2Repository,
+        private readonly ProductMockServiceInterface $productMockService,
+        private readonly EntityManagerInterface $entityManager,
+    ) {
+    }
+
+    /**
+     * Find or create a chat room for a product between buyer and seller.
+     *
+     * @param int $productId
+     * @param User $buyer The user initiating the chat
+     * @param int $sellerId The product seller's user ID
+     * @return ChatRoomV2
+     *
+     * @throws NotFoundHttpException if product doesn't exist
+     * @throws BadRequestException if seller doesn't exist or buyer == seller
+     */
+    public function findOrCreateProductRoom(int $productId, User $buyer, int $sellerId): ChatRoomV2
+    {
+        // 1. Validate product exists
+        $product = $this->productMockService->findById($productId);
+        if ($product === null) {
+            throw new NotFoundHttpException(sprintf('Product with ID %d not found', $productId));
+        }
+
+        // 2. Validate seller exists and is not the buyer
+        $seller = $this->entityManager->getRepository(User::class)->find($sellerId);
+        if ($seller === null) {
+            throw new NotFoundHttpException(sprintf('Seller with ID %d not found', $sellerId));
+        }
+
+        if ($buyer->getId() === $seller->getId()) {
+            throw new BadRequestException('Cannot create chat room with yourself');
+        }
+
+        // 3. Check if room already exists for this product + participants
+        $existingRoom = $this->chatRoomV2Repository->findExistingRoomForProduct(
+            $productId,
+            [$buyer->getId(), $seller->getId()]
+        );
+
+        if ($existingRoom !== null) {
+            return $existingRoom;
+        }
+
+        // 4. Create new room
+        return $this->createProductRoom($product->getTitle(), $productId, $buyer, $seller);
+    }
+
+    /**
+     * Create a new product chat room with buyer and seller as participants.
+     */
+    private function createProductRoom(string $productTitle, int $productId, User $buyer, User $seller): ChatRoomV2
+    {
+        $chatRoom = new ChatRoomV2();
+        $chatRoom->setName(sprintf('Chat: %s', $productTitle));
+        $chatRoom->setType('direct'); // Product chats are always direct (1-1)
+        $chatRoom->setProductId($productId);
+        $chatRoom->setProductTitle($productTitle);
+
+        // Add buyer as participant (admin)
+        $buyerParticipant = new ChatParticipantV2();
+        $buyerParticipant->setUser($buyer);
+        $buyerParticipant->setChatRoom($chatRoom);
+        $buyerParticipant->setRole('admin'); // Buyer initiates, gets admin
+        $chatRoom->addParticipant($buyerParticipant);
+
+        // Add seller as participant (member)
+        $sellerParticipant = new ChatParticipantV2();
+        $sellerParticipant->setUser($seller);
+        $sellerParticipant->setChatRoom($chatRoom);
+        $sellerParticipant->setRole('member'); // Seller joins as member
+        $chatRoom->addParticipant($sellerParticipant);
+
+        // Persist
+        $this->entityManager->persist($chatRoom);
+        $this->entityManager->flush();
+
+        return $chatRoom;
+    }
+
+    /**
+     * Get all chat rooms for a specific product.
+     *
+     * @return ChatRoomV2[]
+     */
+    public function getRoomsForProduct(int $productId): array
+    {
+        return $this->chatRoomV2Repository->findByProductId($productId);
+    }
+
+    /**
+     * Get user's chat rooms for a specific product.
+     *
+     * @return ChatRoomV2[]
+     */
+    public function getUserRoomsForProduct(User $user, int $productId): array
+    {
+        return $this->chatRoomV2Repository->findByUserAndProduct($user, $productId);
+    }
+}

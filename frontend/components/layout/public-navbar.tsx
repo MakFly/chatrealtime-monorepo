@@ -22,10 +22,10 @@ import { logoutAction } from '@/lib/actions/auth'
 
 const navItems = [
   { href: '/', label: 'Accueil' },
+  { href: '/chat', label: 'Chat' },
+  { href: '/marketplace', label: 'Marketplace' },
   { href: '/about', label: 'À propos' },
   { href: '/features', label: 'Fonctionnalités' },
-  { href: '/pricing', label: 'Tarifs' },
-  { href: '/contact', label: 'Contact' },
 ]
 
 // Add dev-login link in development mode

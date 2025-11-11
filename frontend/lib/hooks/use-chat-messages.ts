@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMercureTyped } from './use-mercure'
 import { useMercureToken } from './use-mercure-token'
@@ -67,8 +67,6 @@ export function useChatMessages(options: UseChatMessagesOptions) {
   } = useQuery({
     queryKey: ['messages', roomId, pagination],
     queryFn: async () => {
-      console.log('[useChatMessages] 🔍 Fetching messages for roomId:', roomId)
-
       // Build query parameters
       const params = new URLSearchParams()
       // API Platform SearchFilter expects IRI format, not just the ID
@@ -78,19 +76,15 @@ export function useChatMessages(options: UseChatMessagesOptions) {
       if (pagination?.limit) params.append('itemsPerPage', pagination.limit.toString())
 
       const url = `/api/chat/messages?${params.toString()}`
-      console.log('[useChatMessages] 📡 Request URL:', url)
 
       // Call Next.js API Route (which handles cookies server-side)
       const response = await fetch(url)
 
       if (!response.ok) {
-        console.error('[useChatMessages] ❌ Failed to fetch:', response.status, response.statusText)
         throw new Error(`Failed to fetch messages: ${response.statusText}`)
       }
 
       const data = await response.json()
-      console.log('[useChatMessages] ✅ Received messages:', data.member?.length || 0)
-
       return data as MessageCollection
     },
     enabled: enabled && roomId > 0,
@@ -105,6 +99,25 @@ export function useChatMessages(options: UseChatMessagesOptions) {
   // Memoize onMessage callback to prevent infinite loop
   const handleMercureMessage = useCallback(
     (update: MercureMessageUpdate) => {
+      // ✅ Remove matching optimistic message (by content + author, not ID)
+      // Optimistic messages have negative IDs, real messages have positive IDs
+      setOptimisticMessages((prev) => {
+        const matchingOptimistic = prev.find(
+          (msg) => {
+            const contentMatch = msg.content === update.content
+            // ✅ Compare both as strings to handle type inconsistencies
+            const authorMatch = String(msg.author.id) === String(update.author.id)
+            return contentMatch && authorMatch
+          }
+        )
+
+        if (matchingOptimistic) {
+          return prev.filter((msg) => msg.id !== matchingOptimistic.id)
+        }
+
+        return prev
+      })
+
       // Add new message to cache
       queryClient.setQueryData(
         ['messages', roomId, pagination],
@@ -115,8 +128,10 @@ export function useChatMessages(options: UseChatMessagesOptions) {
             (msg) => msg.id === update.id
           )
 
-          // Don't add duplicate
-          if (existingMessage) return old
+          // Don't add duplicate (by ID)
+          if (existingMessage) {
+            return old
+          }
 
           // Add new message
           // ✅ Mercure update now always has full User object
@@ -148,11 +163,6 @@ export function useChatMessages(options: UseChatMessagesOptions) {
           }
         }
       )
-
-      // Remove from optimistic updates if it was added optimistically
-      setOptimisticMessages((prev) =>
-        prev.filter((msg) => msg.id !== update.id)
-      )
     },
     [queryClient, roomId, pagination]
   )
@@ -170,7 +180,16 @@ export function useChatMessages(options: UseChatMessagesOptions) {
    * Add an optimistic message (before server confirmation)
    */
   const addOptimisticMessage = (message: Message) => {
-    setOptimisticMessages((prev) => [...prev, message])
+    setOptimisticMessages((prev) => [...prev, { ...message, status: 'pending' }])
+  }
+
+  /**
+   * Update optimistic message status (when server responds)
+   */
+  const updateOptimisticMessageStatus = (messageId: number, status: 'sent' | 'delivered') => {
+    setOptimisticMessages((prev) =>
+      prev.map((msg) => (msg.id === messageId ? { ...msg, status } : msg))
+    )
   }
 
   /**
@@ -207,6 +226,7 @@ export function useChatMessages(options: UseChatMessagesOptions) {
     connected,
     refetch,
     addOptimisticMessage,
+    updateOptimisticMessageStatus,
     removeOptimisticMessage,
   }
 }

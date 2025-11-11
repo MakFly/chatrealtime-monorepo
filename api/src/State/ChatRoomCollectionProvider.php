@@ -13,7 +13,9 @@ use Symfony\Bundle\SecurityBundle\Security;
 /**
  * ChatRoom Collection Provider.
  *
- * Filters chat rooms to only return those where the current user is a participant.
+ * Filters chat rooms to return:
+ * - Rooms where the current user is a participant (private/group)
+ * - All public rooms (auto-joined for all authenticated users)
  */
 final class ChatRoomCollectionProvider implements ProviderInterface
 {
@@ -31,7 +33,9 @@ final class ChatRoomCollectionProvider implements ProviderInterface
             return [];
         }
 
-        // Return only chat rooms where user is a participant
-        return $this->chatRoomRepository->findByParticipant($user);
+        // Return chat rooms accessible by user:
+        // - Where user is a participant (private/group)
+        // - All public rooms (auto-join)
+        return $this->chatRoomRepository->findAccessibleByUser($user);
     }
 }

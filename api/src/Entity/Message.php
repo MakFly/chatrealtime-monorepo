@@ -24,13 +24,15 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Index(columns: ['chat_room_id'], name: 'idx_message_chat_room')]
 #[ORM\Index(columns: ['created_at'], name: 'idx_message_created_at')]
 #[ApiResource(
+    uriTemplate: '/v1/messages/{id}',
     mercure: true,
     normalizationContext: ['groups' => ['message:read']],
     denormalizationContext: ['groups' => ['message:write']],
     operations: [
-        new GetCollection(),
+        new GetCollection(uriTemplate: '/v1/messages'),
         new Get(),
         new Post(
+            uriTemplate: '/v1/messages',
             security: "is_granted('ROLE_USER')",
             processor: MessageProcessor::class
         ),

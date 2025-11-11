@@ -34,4 +34,39 @@ class ChatRoomRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Find all public chat rooms.
+     *
+     * @return ChatRoom[]
+     */
+    public function findPublicRooms(): array
+    {
+        return $this->createQueryBuilder('cr')
+            ->where('cr.type = :type')
+            ->setParameter('type', 'public')
+            ->orderBy('cr.updatedAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Find all chat rooms accessible by a user.
+     * Includes:
+     * - Rooms where user is a participant (private/group)
+     * - All public rooms (auto-joined for all authenticated users)
+     *
+     * @return ChatRoom[]
+     */
+    public function findAccessibleByUser(User $user): array
+    {
+        return $this->createQueryBuilder('cr')
+            ->leftJoin('cr.participants', 'p')
+            ->where('p.user = :user OR cr.type = :publicType')
+            ->setParameter('user', $user)
+            ->setParameter('publicType', 'public')
+            ->orderBy('cr.updatedAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
 }

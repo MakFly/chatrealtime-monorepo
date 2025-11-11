@@ -22,16 +22,19 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity(repositoryClass: ChatRoomRepository::class)]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
+    uriTemplate: '/v1/chat_rooms/{id}',
     mercure: true,
     normalizationContext: ['groups' => ['chatRoom:read']],
     denormalizationContext: ['groups' => ['chatRoom:write']],
     operations: [
         new GetCollection(
+            uriTemplate: '/v1/chat_rooms',
             security: "is_granted('ROLE_USER')",
             provider: ChatRoomCollectionProvider::class
         ),
         new Get(security: "is_granted('VIEW', object)"),
         new Post(
+            uriTemplate: '/v1/chat_rooms',
             security: "is_granted('ROLE_USER')",
             processor: ChatRoomProcessor::class
         ),

@@ -20,10 +20,14 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\UniqueConstraint(name: 'idx_chat_participant_unique', columns: ['user_id', 'chat_room_id'])]
 #[UniqueEntity(fields: ['user', 'chatRoom'], message: 'User is already a participant in this room')]
 #[ApiResource(
+    uriTemplate: '/v1/chat_participants/{id}',
     normalizationContext: ['groups' => ['chatParticipant:read']],
     denormalizationContext: ['groups' => ['chatParticipant:write']],
     operations: [
-        new Post(security: "is_granted('ROLE_USER')"),
+        new Post(
+            uriTemplate: '/v1/chat_participants',
+            security: "is_granted('ROLE_USER')"
+        ),
         new Delete(security: "is_granted('DELETE', object)"),
     ]
 )]

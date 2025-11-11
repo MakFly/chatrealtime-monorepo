@@ -6,9 +6,9 @@
 'use client'
 
 import type React from 'react'
-import type { Message } from '@/types/chat'
+import type { Message, MessageStatus } from '@/types/chat'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Loader2 } from 'lucide-react'
+import { Check, CheckCheck, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -72,6 +72,29 @@ function getInitials(name: string | null, email: string): string {
       .slice(0, 2)
   }
   return email.slice(0, 2).toUpperCase()
+}
+
+/**
+ * Message status icon component
+ * - pending: clock icon (sending)
+ * - sent: single check (sent to server)
+ * - delivered: double check (confirmed/persisted)
+ */
+function MessageStatusIcon({ status }: { status?: MessageStatus }) {
+  if (!status || status === 'delivered') {
+    // No icon for delivered messages (default state)
+    return null
+  }
+
+  if (status === 'pending') {
+    return <Clock className="h-3 w-3 opacity-70" />
+  }
+
+  if (status === 'sent') {
+    return <Check className="h-3 w-3 opacity-70" />
+  }
+
+  return null
 }
 
 /**
@@ -187,9 +210,15 @@ export function ChatMessages({
                       : 'bg-muted text-foreground'
                   )}
                 >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {message.content}
-                  </p>
+                  <div className="flex items-end gap-1.5">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap flex-1">
+                      {message.content}
+                    </p>
+                    {/* Status icon (only for current user's messages) */}
+                    {isCurrentUser && (
+                      <MessageStatusIcon status={message.status} />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

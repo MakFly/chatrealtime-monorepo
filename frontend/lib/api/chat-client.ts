@@ -125,3 +125,13 @@ export async function removeParticipantClient(participantId: number) {
   return clientDelete(`${ENDPOINTS.PARTICIPANTS}/${participantId}`)
 }
 
+/**
+ * Join a public chat room (auto-add as participant)
+ * Returns the updated participant count
+ */
+export async function joinChatRoomClient(roomId: number) {
+  return clientPost<{ message: string; participant_count: number }>(
+    `${ENDPOINTS.CHAT_ROOMS}/${roomId}/join`
+  )
+}
+

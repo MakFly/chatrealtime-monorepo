@@ -1,45 +1,69 @@
 /**
- * Chat rooms hook
- * Fetches initial chat rooms via API without Mercure subscription
- * (Mercure is only used for real-time messages in the active room)
+ * Chat rooms hook with real-time updates
+ * Combines TanStack Query for initial data and Mercure for real-time updates
+ * Subscribes to user-specific and global public room topics for instant synchronization
  */
 
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMercureTyped } from './use-mercure'
+import { useMercureToken } from './use-mercure-token'
+import { useCurrentUser } from './use-current-user'
 import type {
   ChatRoomFilters,
   PaginationParams,
-  ChatRoomCollection
+  ChatRoomCollection,
+  ChatRoom
 } from '@/types/chat'
 
 type UseChatRoomsOptions = {
   filters?: ChatRoomFilters
   pagination?: PaginationParams
   enabled?: boolean
+  mercureToken?: string | null // Optional: if provided, skip client-side token fetch
 }
 
 /**
- * Hook for fetching chat rooms
+ * Hook for fetching and subscribing to chat rooms
  *
  * Features:
  * - Fetches initial chat rooms via API
- * - No Mercure subscription (rooms metadata changes rarely)
- * - Use refetch() to manually update the list
+ * - Subscribes to Mercure for real-time updates
+ * - Hybrid topic strategy:
+ *   * User-specific: /chat/rooms/user/{userId} (private/group rooms)
+ *   * Global: /chat/rooms (public rooms visible to all)
+ * - Deduplicates rooms by ID
+ * - Handles optimistic updates
  *
  * @param options Configuration options
  * @returns Chat rooms data, loading state, and query methods
  *
  * @example
  * ```tsx
- * const { rooms, isLoading, error } = useChatRooms({
+ * const { rooms, isLoading, error, connected } = useChatRooms({
  *   filters: { type: 'group' },
  *   enabled: true
  * })
  * ```
  */
 export function useChatRooms(options: UseChatRoomsOptions = {}) {
-  const { filters, pagination, enabled = true } = options
+  const { filters, pagination, enabled = true, mercureToken: externalToken } = options
+
+  const queryClient = useQueryClient()
+
+  // Fetch current user to get userId for topic subscription
+  const { data: currentUser } = useCurrentUser()
+  const userId = currentUser?.id
+
+  // Fetch Mercure JWT token only if not provided externally
+  const { data: fetchedToken } = useMercureToken(
+    !externalToken && enabled
+  )
+
+  // Use external token if provided, otherwise use fetched token
+  const mercureToken = externalToken || fetchedToken
 
   // Fetch initial chat rooms via Next.js API Route
   const {
@@ -51,7 +75,7 @@ export function useChatRooms(options: UseChatRoomsOptions = {}) {
     queryKey: ['chatRooms', filters, pagination],
     queryFn: async () => {
       console.log('[useChatRooms] 🔍 Fetching chat rooms...')
-      
+
       // Build query parameters
       const params = new URLSearchParams()
 
@@ -75,7 +99,6 @@ export function useChatRooms(options: UseChatRoomsOptions = {}) {
       const data = await response.json()
       console.log('[useChatRooms] ✅ Response data:', data)
       console.log('[useChatRooms] 📦 Keys in response:', Object.keys(data))
-      console.log('[useChatRooms] 🔢 hydra:member length:', data['hydra:member']?.length)
       console.log('[useChatRooms] 🔢 member length:', (data as any).member?.length)
 
       return data as ChatRoomCollection
@@ -84,16 +107,78 @@ export function useChatRooms(options: UseChatRoomsOptions = {}) {
     staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
-  // ✅ Our API returns 'member', not 'hydra:member'
   const rooms = roomsData?.member || []
-  
+
+  // Memoize topics to prevent infinite loop
+  // Subscribe to both user-specific and global topics
+  const topics = useMemo(() => {
+    const topicList: string[] = []
+
+    // User-specific topic (for private/group rooms where user is participant)
+    if (userId) {
+      topicList.push(`/chat/rooms/user/${userId}`)
+    }
+
+    // Global topic (for public rooms visible to all authenticated users)
+    topicList.push('/chat/rooms')
+
+    console.log('[useChatRooms] 📡 Subscribing to Mercure topics:', topicList)
+    return topicList
+  }, [userId])
+
+  // Memoize onMessage callback to prevent infinite loop
+  const handleMercureRoom = useCallback(
+    (update: ChatRoom) => {
+      console.log('[useChatRooms] 📥 Received Mercure update for room:', update.id, update.name)
+
+      // Add new room to cache
+      queryClient.setQueryData(
+        ['chatRooms', filters, pagination],
+        (old: ChatRoomCollection | undefined) => {
+          if (!old) return old
+
+          const existingRoom = old.member.find(
+            (room) => room.id === update.id
+          )
+
+          // Don't add duplicate
+          if (existingRoom) {
+            console.log('[useChatRooms] ⏭️  Room already exists, skipping:', update.id)
+            return old
+          }
+
+          // Add new room
+          console.log('[useChatRooms] ➕ Adding new room to cache:', update.id, update.name, update.type)
+
+          return {
+            ...old,
+            member: [update, ...old.member], // Add at beginning for newest-first
+            totalItems: old.totalItems + 1,
+          }
+        }
+      )
+    },
+    [queryClient, filters, pagination]
+  )
+
+  // Subscribe to Mercure for real-time updates (only if we have userId and token)
+  const { connected, error: mercureError } = useMercureTyped<ChatRoom>({
+    topics,
+    token: mercureToken,
+    onMessage: handleMercureRoom,
+    reconnect: true,
+    reconnectDelay: 3000,
+  })
+
   console.log('[useChatRooms] 🏠 Extracted rooms:', rooms.length, 'rooms')
+  console.log('[useChatRooms] 🔌 Mercure connection status:', connected ? 'Connected' : 'Disconnected')
 
   return {
     rooms,
     isLoading,
-    error,
+    error: error || (mercureError ? new Error(mercureError) : null),
     refetch,
-    totalItems: roomsData?.totalItems || 0, // ✅ API returns 'totalItems'
+    totalItems: roomsData?.totalItems || 0,
+    connected, // Expose connection status
   }
 }

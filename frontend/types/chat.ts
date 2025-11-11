@@ -20,6 +20,11 @@ export type ChatRoom = {
 }
 
 /**
+ * Message status for optimistic updates
+ */
+export type MessageStatus = 'pending' | 'sent' | 'delivered'
+
+/**
  * Message entity type
  * Backend: src/Entity/Message.php
  * ✅ API now returns author as full User object with serialization groups
@@ -31,6 +36,7 @@ export type Message = {
   chatRoom: ChatRoom | { '@id': string; '@type': string; name: string } // Can be partial
   createdAt: string // ISO 8601 format
   updatedAt?: string // ISO 8601 format (optional for compatibility)
+  status?: MessageStatus // Local status for optimistic updates
 }
 
 /**

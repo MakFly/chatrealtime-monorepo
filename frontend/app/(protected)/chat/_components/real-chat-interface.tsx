@@ -5,12 +5,14 @@
 
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatStore } from '@/lib/stores/use-chat-store'
 import { useChatMessages } from '@/lib/hooks/use-chat-messages'
+import { useChatRooms } from '@/lib/hooks/use-chat-rooms'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { useMercureConnectionMonitor } from '@/lib/hooks/use-mercure-connection-monitor'
+import { joinChatRoomClient } from '@/lib/api/chat-client'
 import { ChatHeader } from './chat-header'
 import { ChatMessages } from './chat-messages'
 import { ChatInput } from './chat-input'
@@ -20,9 +22,10 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
 type RealChatInterfaceProps = {
   initialMercureToken: string | null
+  initialRoomId: number | null
 }
 
-export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProps) {
+export function RealChatInterface({ initialMercureToken, initialRoomId }: RealChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
@@ -30,13 +33,50 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
   const { data: currentUser } = useCurrentUser()
 
   // Get current room from store
-  const { currentRoomId, currentRoom } = useChatStore()
+  const { setCurrentRoom, currentRoom } = useChatStore()
 
-  // Debug: Log room changes
+  // Fetch all rooms to get the current room details
+  const { rooms } = useChatRooms({ enabled: true })
+
+  // Calculate current room from rooms list - memoized to avoid unnecessary re-renders
+  const currentRoomData = useMemo(() => {
+    if (!initialRoomId) return null
+    return rooms.find((room) => room.id === initialRoomId) || null
+  }, [initialRoomId, rooms])
+
+  // ✅ Sync URL param (initialRoomId) with store on mount/change
+  // Only sync when initialRoomId changes, not when room data updates
   useEffect(() => {
-    console.log('[ChatInterface] currentRoomId changed:', currentRoomId)
-    console.log('[ChatInterface] Will fetch messages?', currentRoomId !== null && currentRoomId > 0)
-  }, [currentRoomId])
+    if (initialRoomId !== null && initialRoomId > 0) {
+      setCurrentRoom(initialRoomId, null) // Don't store the object, just the ID
+    } else {
+      setCurrentRoom(null, null)
+    }
+  }, [initialRoomId, setCurrentRoom])
+
+  // ✅ Auto-join public rooms when accessing them
+  useEffect(() => {
+    const autoJoinPublicRoom = async () => {
+      if (!currentRoomData || currentRoomData.type !== 'public') {
+        return // Only auto-join public rooms
+      }
+
+      try {
+        console.log(`[RealChatInterface] Auto-joining public room ${currentRoomData.id}...`)
+        const response = await joinChatRoomClient(currentRoomData.id)
+
+        if (response.data) {
+          console.log(`[RealChatInterface] ✅ Joined room ${currentRoomData.id}, participants: ${response.data.participant_count}`)
+          // Invalidate rooms list to refresh participant count
+          queryClient.invalidateQueries({ queryKey: ['chatRooms'] })
+        }
+      } catch (error) {
+        console.error('[RealChatInterface] Failed to auto-join public room:', error)
+      }
+    }
+
+    autoJoinPublicRoom()
+  }, [currentRoomData?.id, currentRoomData?.type, queryClient])
 
   // Fetch messages for current room with Mercure real-time updates
   // TanStack Query handles enabled: false by not executing the query
@@ -45,10 +85,13 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
     isLoading,
     error,
     connected,
+    addOptimisticMessage,
+    updateOptimisticMessageStatus,
+    removeOptimisticMessage,
   } = useChatMessages({
-    roomId: currentRoomId || 0,
+    roomId: initialRoomId || 0,
     mercureToken: initialMercureToken,
-    enabled: currentRoomId !== null && currentRoomId > 0,
+    enabled: initialRoomId !== null && initialRoomId > 0,
   })
 
   // Monitor Mercure connection and show dialog if connection lost
@@ -61,18 +104,11 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
   // Force refetch when room changes
   // React Query doesn't always refetch when a query goes from disabled to enabled
   useEffect(() => {
-    if (currentRoomId && currentRoomId > 0) {
-      console.log('[ChatInterface] 🔄 Force refetch messages for room:', currentRoomId)
+    if (initialRoomId && initialRoomId > 0) {
       // Invalidate the query to force fresh data
-      queryClient.invalidateQueries({ queryKey: ['messages', currentRoomId] })
+      queryClient.invalidateQueries({ queryKey: ['messages', initialRoomId] })
     }
-  }, [currentRoomId, queryClient])
-
-  // Debug: Log messages changes
-  useEffect(() => {
-    console.log('[ChatInterface] messages count:', messages.length, 'for room:', currentRoomId)
-    console.log('[ChatInterface] isLoading:', isLoading, 'error:', error)
-  }, [messages.length, currentRoomId, isLoading, error])
+  }, [initialRoomId, queryClient])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -82,14 +118,13 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
   }, [messages])
 
   /**
-   * ✅ CRITICAL: Callback after message sent
-   * Invalidates React Query cache to refetch messages
+   * ✅ Callback after message sent
+   * With optimistic updates, we don't need to invalidate cache anymore
+   * The message appears immediately (optimistic) and Mercure will update it with the real message
    */
   const handleMessageSent = () => {
-    console.log('[ChatInterface] 📤 Message sent, invalidating cache for room:', currentRoomId)
-    if (currentRoomId) {
-      queryClient.invalidateQueries({ queryKey: ['messages', currentRoomId] })
-    }
+    // No need to invalidate cache - Mercure handles real-time updates
+    // The optimistic message was already shown, and will be replaced by the real one via Mercure
   }
 
   return (
@@ -97,15 +132,15 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
       <AppSidebar />
 
       <SidebarInset>
-        <div className="flex h-screen flex-col">
+        <div className="flex h-full flex-col">
           {/* Header with room info and Mercure connection status */}
           <ChatHeader
-            currentRoom={currentRoom}
+            currentRoom={currentRoomData}
             connected={connected}
           />
 
           {/* Messages display */}
-          {currentRoom ? (
+          {initialRoomId !== null && initialRoomId > 0 ? (
             <>
               <ChatMessages
                 messages={messages}
@@ -116,8 +151,12 @@ export function RealChatInterface({ initialMercureToken }: RealChatInterfaceProp
 
               {/* Input for sending messages */}
               <ChatInput
-                roomId={currentRoomId}
+                roomId={initialRoomId}
                 onMessageSent={handleMessageSent}
+                addOptimisticMessage={addOptimisticMessage}
+                updateOptimisticMessageStatus={updateOptimisticMessageStatus}
+                removeOptimisticMessage={removeOptimisticMessage}
+                currentUser={currentUser}
                 disabled={!connected || isLoading}
               />
             </>

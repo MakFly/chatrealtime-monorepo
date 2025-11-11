@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -31,8 +32,6 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { createChatRoomClient } from '@/lib/api/chat-client'
-import { useChatStore } from '@/lib/stores/use-chat-store'
-import type { ChatRoom } from '@/types/chat'
 
 const createRoomSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(255, 'Le nom est trop long'),
@@ -50,7 +49,7 @@ type CreateRoomDialogProps = {
 
 export function CreateRoomDialog({ open, onOpenChange }: CreateRoomDialogProps) {
   const queryClient = useQueryClient()
-  const { setCurrentRoom } = useChatStore()
+  const router = useRouter()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const form = useForm<CreateRoomFormValues>({
@@ -107,9 +106,6 @@ export function CreateRoomDialog({ open, onOpenChange }: CreateRoomDialogProps) 
       // Invalidate and refetch rooms list
       await queryClient.invalidateQueries({ queryKey: ['chatRooms'] })
 
-      // Select the newly created room
-      setCurrentRoom(response.data.id, response.data as ChatRoom)
-
       // Reset form and close dialog
       form.reset()
       onOpenChange(false)
@@ -117,6 +113,9 @@ export function CreateRoomDialog({ open, onOpenChange }: CreateRoomDialogProps) 
       toast.success('Conversation créée avec succès', {
         description: `La conversation "${response.data.name}" a été créée`,
       })
+
+      // ✅ Navigate to the newly created room
+      router.push(`/chat/${response.data.id}`)
     } catch (error) {
       console.error('[CreateRoomDialog] ❌ Exception:', error)
       toast.error('Erreur lors de la création de la conversation', {

@@ -27,6 +27,13 @@ type ChatInputProps = {
     }
     createdAt: string
   }) => void
+  updateOptimisticMessageStatus?: (messageId: number, status: 'sent' | 'delivered') => void
+  removeOptimisticMessage?: (messageId: number) => void
+  currentUser?: {
+    id: string
+    email: string
+    name: string | null
+  } | null
   disabled?: boolean
 }
 
@@ -34,6 +41,9 @@ export function ChatInput({
   roomId,
   onMessageSent,
   addOptimisticMessage,
+  updateOptimisticMessageStatus,
+  removeOptimisticMessage,
+  currentUser,
   disabled = false,
 }: ChatInputProps) {
   const [input, setInput] = useState('')
@@ -57,6 +67,24 @@ export function ChatInput({
     setError(null)
     setIsSending(true)
 
+    // ✅ Generate temporary ID for optimistic message
+    // Use negative ID to avoid collision with real messages
+    const optimisticId = -Date.now()
+
+    // ✅ Add optimistic message IMMEDIATELY (before fetch)
+    if (addOptimisticMessage && currentUser) {
+      addOptimisticMessage({
+        id: optimisticId,
+        content,
+        author: {
+          id: currentUser.id,
+          email: currentUser.email,
+          name: currentUser.name,
+        },
+        createdAt: new Date().toISOString(),
+      })
+    }
+
     try {
       // Create message payload
       const messageData: CreateMessageRequest = {
@@ -78,14 +106,28 @@ export function ChatInput({
         throw new Error(errorData.error || 'Erreur lors de l\'envoi du message')
       }
 
+      // ⚠️ DON'T parse the response! We don't need it.
+      // The real message will arrive via Mercure, which will replace the optimistic one.
+      // If we parse the response, we risk adding the message twice.
+
+      // ✅ Update status to 'sent' (message accepted by server)
+      if (updateOptimisticMessageStatus) {
+        updateOptimisticMessageStatus(optimisticId, 'sent')
+      }
+
       // Success - call callback
       onMessageSent?.()
 
       // Focus back on textarea
       textareaRef.current?.focus()
     } catch (err) {
-      console.error('Error sending message:', err)
       setError(err instanceof Error ? err.message : 'Erreur lors de l\'envoi du message')
+
+      // ✅ Remove optimistic message on error
+      if (removeOptimisticMessage) {
+        removeOptimisticMessage(optimisticId)
+      }
+
       // Restore input on error
       setInput(content)
     } finally {

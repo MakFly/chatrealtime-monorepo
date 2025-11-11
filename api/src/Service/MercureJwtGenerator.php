@@ -30,20 +30,27 @@ final class MercureJwtGenerator
     /**
      * Generate a Mercure JWT for the given user.
      *
-     * The JWT will include subscribe claims for all chat rooms where the user is a participant.
+     * The JWT will include subscribe claims for all accessible chat rooms:
+     * - Rooms where user is an explicit participant (private/group)
+     * - All public rooms (auto-join for authenticated users)
      */
     public function generateToken(User $user): string
     {
         $now = new \DateTimeImmutable();
 
-        // Get all chat rooms where user is a participant
-        $chatRooms = $this->chatRoomRepository->findByParticipant($user);
+        // ✅ Get all accessible chat rooms (includes public rooms + participant rooms)
+        $chatRooms = $this->chatRoomRepository->findAccessibleByUser($user);
 
         // Build topics: /chat/room/{id}
         $topics = [];
         foreach ($chatRooms as $chatRoom) {
             $topics[] = sprintf('/chat/room/%d', $chatRoom->getId());
         }
+
+        // Debug log
+        error_log(sprintf('[MercureJwtGenerator] 🔑 Generating token for user #%d (%s)', $user->getId(), $user->getEmail()));
+        error_log(sprintf('[MercureJwtGenerator] 📡 Found %d accessible chat rooms', count($chatRooms)));
+        error_log(sprintf('[MercureJwtGenerator] 📋 Topics: %s', json_encode($topics)));
 
         // Create JWT token
         $token = $this->jwtConfig->builder()

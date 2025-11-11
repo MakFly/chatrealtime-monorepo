@@ -19,11 +19,14 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Table(name: '`user`')]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 #[ORM\HasLifecycleCallbacks]
-#[ApiResource(operations: [
-    new Get(security: "is_granted('ROLE_USER') and object == user"),
-    new Put(security: "is_granted('ROLE_USER') and object == user"),
-    new Delete(security: "is_granted('ROLE_ADMIN')"),
-])]
+#[ApiResource(
+    uriTemplate: '/v1/users/{id}',
+    operations: [
+        new Get(security: "is_granted('ROLE_USER') and object == user"),
+        new Put(security: "is_granted('ROLE_USER') and object == user"),
+        new Delete(security: "is_granted('ROLE_ADMIN')"),
+    ]
+)]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]

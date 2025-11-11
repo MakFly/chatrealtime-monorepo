@@ -37,13 +37,20 @@ async function getMercureToken(): Promise<string | null> {
   }
 }
 
+/**
+ * Chat page without a specific room selected
+ * Shows the sidebar with room list and empty state
+ */
 export default async function ChatPage() {
   // Fetch Mercure token server-side before rendering
   const initialMercureToken = await getMercureToken()
 
   return (
     <div className="h-screen w-full">
-      <RealChatInterface initialMercureToken={initialMercureToken} />
+      <RealChatInterface
+        initialMercureToken={initialMercureToken}
+        initialRoomId={null}
+      />
     </div>
   )
 }

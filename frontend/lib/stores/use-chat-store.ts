@@ -138,8 +138,8 @@ export const useChatStore = create<ChatState>()(
     {
       name: 'chat-storage',
       partialize: (state) => ({
-        // Only persist current room ID and sidebar state
-        currentRoomId: state.currentRoomId,
+        // ✅ Don't persist currentRoomId - URL is the source of truth
+        // Only persist sidebar state
         isSidebarOpen: state.isSidebarOpen,
       }),
     }

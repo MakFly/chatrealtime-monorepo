@@ -12,7 +12,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 /**
  * Voter for Message authorization.
  *
- * - VIEW: User must be a participant of the chat room
+ * - VIEW: User must be a participant of the chat room OR room is public (auto-join)
  * - DELETE: User must be the author of the message
  */
 final class MessageVoter extends Voter
@@ -55,7 +55,12 @@ final class MessageVoter extends Voter
             return false;
         }
 
-        // User must be a participant of the chat room
+        // Public rooms are accessible to all authenticated users (auto-join)
+        if ($chatRoom->getType() === 'public') {
+            return true;
+        }
+
+        // Private and group rooms require explicit participation
         foreach ($chatRoom->getParticipants() as $participant) {
             if ($participant->getUser() === $user) {
                 return true;

@@ -65,6 +65,11 @@ services:
         arguments:
             $mercureJwtSecret: '%env(MERCURE_JWT_SECRET)%'
 
+    # Mercure JWT Generator V2 (for marketplace chat)
+    App\Service\MercureJwtGeneratorV2:
+        arguments:
+            $mercureJwtSecret: '%env(MERCURE_JWT_SECRET)%'
+
     # Doctrine Extensions for API Platform
     App\Doctrine\Extension\MessageAccessExtension:
         tags:

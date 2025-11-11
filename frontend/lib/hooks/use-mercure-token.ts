@@ -1,14 +1,11 @@
 /**
- * Hook to fetch Mercure JWT token from API Route
+ * Hook to fetch Mercure JWT token using Server Action
  */
 
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-
-type MercureTokenResponse = {
-  token: string
-}
+import { getMercureToken } from '@/lib/actions/mercure'
 
 /**
  * Fetches the Mercure JWT token for subscribing to real-time updates
@@ -19,16 +16,7 @@ type MercureTokenResponse = {
 export function useMercureToken(enabled = true) {
   return useQuery({
     queryKey: ['mercure', 'token'],
-    queryFn: async () => {
-      const response = await fetch('/api/mercure/token')
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch Mercure token')
-      }
-
-      const data: MercureTokenResponse = await response.json()
-      return data.token
-    },
+    queryFn: getMercureToken,
     enabled,
     staleTime: 1000 * 60 * 60 * 5.5, // 5.5 hours (token expires in 6 hours)
     gcTime: 1000 * 60 * 60 * 6, // 6 hours
