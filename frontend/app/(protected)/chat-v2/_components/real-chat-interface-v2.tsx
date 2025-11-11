@@ -105,15 +105,36 @@ export function RealChatInterfaceV2({
           // Invalidate rooms list to refresh
           queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
         } else if (response.error) {
-          const errorMsg = response.error.message || 'Impossible de créer la conversation.'
-          console.error('[RealChatInterfaceV2] ❌ API Error:', errorMsg)
+          // Enhanced error handling with specific messages based on status code
+          const status = response.error.status
+          let errorMsg = response.error.message
+
+          // Provide user-friendly messages for common errors
+          if (status === 401) {
+            errorMsg = 'Votre session a expiré. Veuillez vous reconnecter.'
+          } else if (status === 403) {
+            errorMsg = 'Vous n\'avez pas l\'autorisation d\'accéder à cette conversation.'
+          } else if (status === 404) {
+            errorMsg = 'Produit introuvable. Il a peut-être été supprimé.'
+          } else if (status === 400) {
+            errorMsg = 'Requête invalide. Veuillez réessayer.'
+          } else if (status >= 500) {
+            errorMsg = 'Erreur du serveur. Veuillez réessayer plus tard.'
+          }
+
+          console.error('[RealChatInterfaceV2] ❌ API Error:', {
+            status,
+            message: errorMsg,
+            details: response.error.details,
+          })
+
           setRoomError(errorMsg)
         } else {
-          setRoomError('Impossible de créer la conversation.')
+          setRoomError('Impossible de créer la conversation. Veuillez réessayer.')
         }
       } catch (error) {
         console.error('[RealChatInterfaceV2] ❌ Exception:', error)
-        setRoomError('Erreur lors de la création de la conversation.')
+        setRoomError('Erreur réseau. Vérifiez votre connexion et réessayez.')
       } finally {
         setIsCreatingRoom(false)
       }
