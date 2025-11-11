@@ -174,9 +174,9 @@ Before committing backend code:
 
 ### Frontend: Server-First + TypeScript Strict + Feature-First
 
-**CRITICAL**: The frontend follows **2025 best practices** documented in `frontend/AI-DD/`.
+**CRITICAL**: The frontend follows **2025 best practices** documented in `AI-DD/nextjs`.
 
-#### Core Principles (see `frontend/AI-DD/00-README.md`)
+#### Core Principles (see `AI-DD/nextjs/00-README.md`)
 
 1. **Server Components by Default**: Use `"use client"` only when necessary
 2. **TypeScript Strict**: NO `any` types, explicit typing everywhere
@@ -198,7 +198,7 @@ type ProjectRules = {
 
 #### Frontend Documentation
 
-Consult `frontend/AI-DD/` when:
+Consult `AI-DD/nextjs` when:
 - Creating new features or components
 - Implementing data fetching patterns
 - Writing forms with validation
@@ -207,13 +207,13 @@ Consult `frontend/AI-DD/` when:
 - Following architecture patterns
 
 **Quick Reference:**
-- New component: `AI-DD/04-SHADCN-UI.md`, `AI-DD/02-TYPESCRIPT-REACT.md`
-- New route/page: `AI-DD/01-NEXTJS-PATTERNS.md`, `AI-DD/03-CLEAN-ARCHITECTURE.md`
-- Data fetching: `AI-DD/05-TANSTACK-QUERY.md`, `AI-DD/16-API-PATTERNS.md`
-- Forms: `AI-DD/05-REACT-HOOK-FORM.md` (cursor rules)
-- Server actions: `AI-DD/06-SAFE-ACTIONS.md`
-- State: `AI-DD/07-ZUSTAND.md`
-- Standards: `AI-DD/10-CODING-STANDARDS.md`
+- New component: `AI-DD/nextjs/04-SHADCN-UI.md`, `AI-DD/nextjs/02-TYPESCRIPT-REACT.md`
+- New route/page: `AI-DD/nextjs/01-NEXTJS-PATTERNS.md`, `AI-DD/nextjs/03-CLEAN-ARCHITECTURE.md`
+- Data fetching: `AI-DD/nextjs/05-TANSTACK-QUERY.md`, `AI-DD/nextjs/16-API-PATTERNS.md`
+- Forms: `AI-DD/nextjs/05-REACT-HOOK-FORM.md` (cursor rules)
+- Server actions: `AI-DD/nextjs/06-SAFE-ACTIONS.md`
+- State: `AI-DD/nextjs/07-ZUSTAND.md`
+- Standards: `AI-DD/nextjs/10-CODING-STANDARDS.md`
 
 ---
 

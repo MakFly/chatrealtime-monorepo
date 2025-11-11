@@ -311,7 +311,7 @@ const total = (a: number, b: number) => a + b // inferred: number
  * ```
  */
 export async function getCar(id: string): Promise<Car> {
-  const { data } = await serverGet<Car>(`/cars/${id}`)
+  const { data } = await serverAPI.get<Car>(`/cars/${id}`)
   return data
 }
 ```
@@ -392,7 +392,7 @@ const [showModal, setShowModal] = useState(false)
 // ✅ CORRECT - Specific error handling
 async function fetchCar(id: string): Promise<Car> {
   try {
-    const { data } = await serverGet<Car>(`/cars/${id}`)
+    const { data } = await serverAPI.get<Car>(`/cars/${id}`)
     return data
   } catch (error) {
     if (error instanceof APIError) {

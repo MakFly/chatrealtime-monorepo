@@ -2,61 +2,75 @@
  * Google OAuth Callback Handler
  *
  * After successful Google authentication, the backend redirects here with tokens.
- * This page extracts the tokens from URL parameters and stores them in Next.js cookies.
+ * This page extracts the tokens from URL hash fragment and stores them in Next.js cookies.
  */
 
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
+import { handleGoogleCallbackAction } from '@/lib/actions/auth'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Get tokens from URL parameters (sent by backend)
-        const accessToken = searchParams.get('access_token')
-        const refreshToken = searchParams.get('refresh_token')
-        const expiresIn = searchParams.get('expires_in')
+        // Get tokens from URL hash fragment (not query params!)
+        // Backend sends: http://localhost:3000/auth/callback#access_token=...&refresh_token=...
+        const hash = window.location.hash.substring(1) // Remove the '#'
+        const params = new URLSearchParams(hash)
+
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+        const expiresIn = params.get('expires_in')
+
+        // Check for error in hash (user cancelled or error occurred)
+        const errorParam = params.get('error')
+        const errorMessage = params.get('message')
+
+        if (errorParam) {
+          setError(errorMessage || 'Authentication failed')
+          return
+        }
 
         if (!accessToken || !refreshToken || !expiresIn) {
           setError('Missing authentication tokens')
+          console.error('Hash params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, expiresIn: !!expiresIn })
+          console.error('Full hash:', window.location.hash)
           return
         }
 
-        // Store tokens in Next.js cookies via server action
-        const response = await fetch('/api/auth/session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            accessToken,
-            refreshToken,
-            expiresIn: parseInt(expiresIn, 10),
-          }),
-        })
+        // Store tokens using server action
+        // Note: handleGoogleCallbackAction will redirect to /dashboard
+        // The redirect() function throws a NEXT_REDIRECT exception which is normal behavior
+        await handleGoogleCallbackAction(
+          accessToken,
+          refreshToken,
+          parseInt(expiresIn, 10)
+        )
 
-        if (!response.ok) {
-          setError('Failed to create session')
-          return
-        }
-
-        // Redirect to dashboard/chat
-        router.push('/chat')
+        // If we reach here, there was an error (no redirect happened)
+        setError('Authentication completed but redirect failed')
       } catch (err) {
         console.error('Callback error:', err)
+
+        // Check if this is a Next.js redirect (which is normal)
+        if (err && typeof err === 'object' && 'digest' in err && String(err.digest).startsWith('NEXT_REDIRECT')) {
+          // This is a normal redirect, let it propagate
+          throw err
+        }
+
+        // Otherwise, it's a real error
         setError('An error occurred during authentication')
       }
     }
 
     handleCallback()
-  }, [searchParams, router])
+  }, [router])
 
   if (error) {
     return (

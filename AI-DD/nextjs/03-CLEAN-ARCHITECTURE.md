@@ -246,16 +246,15 @@ export function useCars(filters?: CarFilters) {
 }
 
 // features/cars/lib/api.ts
-import { serverGet } from '@/shared/lib/api/server'
-import { clientAPI } from '@/shared/lib/api'
+import { serverAPI, clientAPI } from '@/shared/lib/api'
 import type { Car, CarFilters, CarListResponse } from '../types'
 
 export const carsAPI = {
   server: {
     list: (filters?: CarFilters) =>
-      serverGet<CarListResponse>('/cars', { query: filters }),
+      serverAPI.get<CarListResponse>('/cars', { query: filters }),
     get: (id: string) =>
-      serverGet<Car>(`/cars/${id}`),
+      serverAPI.get<Car>(`/cars/${id}`),
   },
   client: {
     list: (filters?: CarFilters) =>

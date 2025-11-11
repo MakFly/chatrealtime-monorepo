@@ -12,6 +12,7 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use App\Repository\ChatRoomRepository;
 use App\State\ChatRoomCollectionProvider;
+use App\State\ChatRoomProcessor;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -30,7 +31,10 @@ use Symfony\Component\Validator\Constraints as Assert;
             provider: ChatRoomCollectionProvider::class
         ),
         new Get(security: "is_granted('VIEW', object)"),
-        new Post(security: "is_granted('ROLE_USER')"),
+        new Post(
+            security: "is_granted('ROLE_USER')",
+            processor: ChatRoomProcessor::class
+        ),
         new Patch(security: "is_granted('EDIT', object)"),
         new Delete(security: "is_granted('DELETE', object)"),
     ]

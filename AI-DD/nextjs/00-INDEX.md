@@ -20,54 +20,36 @@ Ce répertoire contient **toute la documentation nécessaire** pour qu'un agent 
 
 ## 📖 Structure de la documentation
 
-### Technologies & Patterns
-
 | Fichier | Sujet | Exemples | Statut |
 |---------|-------|----------|--------|
 | **[00-INDEX.md](./00-INDEX.md)** | Index et guide | - | ✅ |
-| **[01-NEXTJS-PATTERNS.md](./01-NEXTJS-PATTERNS.md)** | Next.js 15 patterns | Routes, RSC, Performance | ✅ |
-| **[02-TYPESCRIPT-REACT.md](./02-TYPESCRIPT-REACT.md)** | TypeScript & React 19 | Types, Hooks, Components | ✅ |
-| **[03-CLEAN-ARCHITECTURE.md](./03-CLEAN-ARCHITECTURE.md)** | Feature-first arch | Structure, Organization | ✅ |
-| **[04-SHADCN-UI.md](./04-SHADCN-UI.md)** | Composants UI | CarCard, Filters, Modals | ✅ |
-| **[05-TANSTACK-QUERY.md](./05-TANSTACK-QUERY.md)** | Data fetching | useCars, Prefetch, Mutations | ✅ |
-| **[06-SAFE-ACTIONS.md](./06-SAFE-ACTIONS.md)** | Server Actions | Create car, Auth, Payments | ✅ |
-| **[07-ZUSTAND.md](./07-ZUSTAND.md)** | State management | Filters, Auth, UI state | ✅ |
-| **[08-PATTERNS-RECIPES.md](./08-PATTERNS-RECIPES.md)** | Patterns combinés | Features complètes | ✅ |
-
-### Code Quality & Standards
-
-| Fichier | Sujet | Exemples | Statut |
-|---------|-------|----------|--------|
-| **[09-TYPESCRIPT-STRICT-TYPING.md](./09-TYPESCRIPT-STRICT-TYPING.md)** | Typage strict | Type guards, No any, ESLint | ✅ |
-| **[10-CODING-STANDARDS.md](./10-CODING-STANDARDS.md)** | Standards projet | Naming, Imports, Architecture | ✅ |
-| **[11-SHARED-COMPONENTS.md](./11-SHARED-COMPONENTS.md)** | Composants partagés | UI components library | ✅ |
-| **[12-LINT-ROADMAP.md](./12-LINT-ROADMAP.md)** | Roadmap vers 100% | Plan corrections, Statistiques | ✅ |
-| **[13-LINT-FIX-EXAMPLES.md](./13-LINT-FIX-EXAMPLES.md)** | Exemples corrections | ContactInfoSection fix | ✅ |
-| **[14-ERROR-HANDLING.md](./14-ERROR-HANDLING.md)** | Gestion d'erreurs | Error boundaries, useActionState | ✅ |
-| **[16-API-PATTERNS.md](./16-API-PATTERNS.md)** | Patterns API | server.ts, client.ts, Retry, Timeout | ✅ |
+| **[01-SHADCN-UI.md](./01-SHADCN-UI.md)** | Composants UI | CarCard, Filters, Modals | ✅ |
+| **[02-NEXTJS-15.md](./02-NEXTJS-15.md)** | Next.js complet | Routes, RSC, Data fetching | ✅ |
+| **[03-TANSTACK-QUERY.md](./03-TANSTACK-QUERY.md)** | Data fetching | useCars, Prefetch, Mutations | ✅ |
+| **[04-SAFE-ACTIONS.md](./04-SAFE-ACTIONS.md)** | Server Actions | Create car, Auth, Payments | ✅ |
+| **[05-ZUSTAND.md](./05-ZUSTAND.md)** | State management | Filters, Auth, UI state | ✅ |
+| **[06-FORMS-VALIDATION.md](./06-FORMS-VALIDATION.md)** | Forms & Zod | Car form, User profile | ✅ |
+| **[07-PATTERNS-RECIPES.md](./07-PATTERNS-RECIPES.md)** | Patterns combinés | Features complètes | ✅ |
+| **[08-EXAMPLES-TEMPLATES.md](./08-EXAMPLES-TEMPLATES.md)** | Templates | CRUD, Auth, Dashboard | ✅ |
 
 ## 🚀 Quick Start pour Agents IA
 
 ### Pour créer une nouvelle feature:
 
 1. **Identifier le type de feature**:
-   - UI Component → `04-SHADCN-UI.md`
-   - Data fetching → `05-TANSTACK-QUERY.md`
-   - Form → React Hook Form + Zod patterns
-   - Server mutation → `06-SAFE-ACTIONS.md`
-   - State management → `07-ZUSTAND.md`
+   - UI Component → `01-SHADCN-UI.md`
+   - Data fetching → `03-TANSTACK-QUERY.md`
+   - Form → `06-FORMS-VALIDATION.md`
+   - Server mutation → `04-SAFE-ACTIONS.md`
+   - State management → `05-ZUSTAND.md`
 
 2. **Consulter les patterns**:
-   - Next.js patterns → `01-NEXTJS-PATTERNS.md`
-   - TypeScript & React → `02-TYPESCRIPT-REACT.md`
-   - Architecture → `03-CLEAN-ARCHITECTURE.md`
-   - Patterns combinés → `08-PATTERNS-RECIPES.md`
+   - Patterns combinés → `07-PATTERNS-RECIPES.md`
+   - Templates complets → `08-EXAMPLES-TEMPLATES.md`
 
-3. **Garantir la qualité**:
-   - TypeScript strict → `09-TYPESCRIPT-STRICT-TYPING.md`
-   - Standards projet → `10-CODING-STANDARDS.md`
-   - Linting 100% → `12-LINT-ROADMAP.md`
-   - Exemples corrections → `13-LINT-FIX-EXAMPLES.md`
+3. **Vérifier l'architecture**:
+   - Structure Next.js → `02-NEXTJS-15.md`
+   - Best practices → Chaque fichier contient une section
 
 ## 🎨 Contexte projet iAutos
 

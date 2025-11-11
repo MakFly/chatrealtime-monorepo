@@ -63,9 +63,8 @@ import { cn } from '@/shared/lib/utils'
 export type Car = { id: string; brand: string }
 
 // ✅ API
-import { serverGet } from '@/shared/lib/api/server'
-import { clientAPI } from '@/shared/lib/api'
-const { data } = await serverGet('/cars')
+import { serverAPI, clientAPI } from '@/shared/lib/api'
+const { data } = await serverAPI.get('/cars')
 ```
 
 ---

@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Cache and logs
+var/cache/*
+var/log/*
+!var/cache/.gitkeep
+!var/log/.gitkeep
+
+# Tests
+tests/
+phpunit.xml.dist
+.phpunit.result.cache
+
+# CI/CD
+.github/
+
+# Documentation
+README.md
+CLAUDE.md
+AI-DD/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Docker
+.dockerignore
+Dockerfile*
+compose*.yaml
+docker-compose*.yml
+
+# Environment
+.env.local
+.env.*.local
+
+# Vendor (will be installed in container)
+vendor/
+
+# Node modules (if any)
+node_modules/
+
+# Makefile
+Makefile

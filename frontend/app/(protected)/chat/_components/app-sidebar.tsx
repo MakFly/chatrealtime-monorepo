@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { useChatRooms } from "@/lib/hooks/use-chat-rooms"
 import { useChatStore } from "@/lib/stores/use-chat-store"
 import type { ChatRoom } from "@/types/chat"
+import { CreateRoomDialog } from "./create-room-dialog"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar>
 
@@ -80,6 +81,7 @@ function getRoomInitials(room: ChatRoom): string {
 
 export function AppSidebar({ ...props }: AppSidebarProps) {
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
 
   // Fetch chat rooms
   const { rooms, isLoading, error } = useChatRooms({
@@ -113,8 +115,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
   }
 
   const handleCreateRoom = () => {
-    // TODO: Implement create room dialog
-    console.log("Create room clicked")
+    setIsCreateDialogOpen(true)
   }
 
   return (
@@ -250,6 +251,11 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
       </SidebarFooter>
 
       <SidebarRail />
+
+      <CreateRoomDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+      />
     </Sidebar>
   )
 }

@@ -33,7 +33,7 @@ function getAccessToken(): string | null {
 
   const cookies = document.cookie.split(';')
   const tokenCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith('accessToken=')
+    cookie.trim().startsWith('access_token=')
   )
 
   if (!tokenCookie) return null

@@ -97,7 +97,7 @@ export default async function AcheterPage() {
   await queryClient.prefetchQuery({
     queryKey: ['cars'],
     queryFn: async () => {
-      const { data } = await serverGet('/cars')
+      const { data } = await serverAPI.get('/cars')
       return data
     },
   })
