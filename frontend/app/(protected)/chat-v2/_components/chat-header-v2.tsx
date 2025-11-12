@@ -47,20 +47,35 @@ export function ChatHeaderV2({
 }: ChatHeaderV2Props) {
   const { isProductDetailsOpen, toggleProductDetails } = useChatStoreV2()
 
-  // Empty state - no room selected
+  // Empty state - no room selected (show product info if available)
   if (!currentRoom) {
     return (
       <header className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-muted">
-              <Package className="h-4 w-4" />
+              {product ? (
+                getRoomInitials(product.title)
+              ) : (
+                <Package className="h-4 w-4" />
+              )}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="text-sm font-semibold text-muted-foreground">
-              Chargement de la conversation...
-            </h2>
+            {product ? (
+              <>
+                <h2 className="text-sm font-semibold">
+                  {product.title}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Nouvelle conversation
+                </p>
+              </>
+            ) : (
+              <h2 className="text-sm font-semibold text-muted-foreground">
+                Chargement...
+              </h2>
+            )}
           </div>
         </div>
       </header>

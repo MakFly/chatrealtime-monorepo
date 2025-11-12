@@ -8,6 +8,7 @@ use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\MessageV2;
 use App\Entity\User;
+use App\Service\ChatParticipantRestoreService;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -30,6 +31,7 @@ final class MessageV2Processor implements ProcessorInterface
         private readonly Security $security,
         private readonly HubInterface $mercureHub,
         private readonly SerializerInterface $serializer,
+        private readonly ChatParticipantRestoreService $restoreService,
     ) {
     }
 
@@ -41,6 +43,19 @@ final class MessageV2Processor implements ProcessorInterface
         // Only process on POST (create) - check if it's a Post operation
         if ($operation instanceof \ApiPlatform\Metadata\Post) {
             $this->validateAndSetAuthor($data);
+
+            // Restore any soft-deleted participants before creating the message
+            // This ensures users who deleted the conversation will see new messages
+            $chatRoom = $data->getChatRoom();
+            if ($chatRoom !== null) {
+                $restoredCount = $this->restoreService->restoreDeletedParticipants($chatRoom);
+                if ($restoredCount > 0) {
+                    error_log(sprintf('[MessageV2Processor] 🔄 Restored %d participant(s) in room #%d',
+                        $restoredCount,
+                        $chatRoom->getId()
+                    ));
+                }
+            }
         }
 
         // Delegate to default persist processor

@@ -21,6 +21,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
 
     /**
      * Find all chat rooms where the user is a participant.
+     * Excludes rooms where the user has soft-deleted their participation.
      *
      * @return ChatRoomV2[]
      */
@@ -29,6 +30,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
         return $this->createQueryBuilder('cr')
             ->innerJoin('cr.participants', 'p')
             ->where('p.user = :user')
+            ->andWhere('p.deletedAt IS NULL')
             ->setParameter('user', $user)
             ->orderBy('cr.updatedAt', 'DESC')
             ->getQuery()
@@ -53,7 +55,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
     /**
      * Find all chat rooms accessible by a user.
      * Includes:
-     * - Rooms where user is a participant (private/group)
+     * - Rooms where user is a participant (private/group) and hasn't soft-deleted
      * - All public rooms (auto-joined for all authenticated users)
      *
      * @return ChatRoomV2[]
@@ -62,7 +64,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('cr')
             ->leftJoin('cr.participants', 'p')
-            ->where('p.user = :user OR cr.type = :publicType')
+            ->where('(p.user = :user AND p.deletedAt IS NULL) OR cr.type = :publicType')
             ->setParameter('user', $user)
             ->setParameter('publicType', 'public')
             ->orderBy('cr.updatedAt', 'DESC')
@@ -89,6 +91,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
     /**
      * Find existing chat room for a product between specific users.
      * Prevents duplicate rooms for same product + participants.
+     * Excludes rooms where any participant has soft-deleted.
      *
      * @param int $productId
      * @param array<int> $userIds Array of user IDs (typically buyer + seller)
@@ -99,6 +102,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('cr')
             ->innerJoin('cr.participants', 'p')
             ->where('cr.productId = :productId')
+            ->andWhere('p.deletedAt IS NULL')
             ->setParameter('productId', $productId)
             ->groupBy('cr.id')
             ->having('COUNT(DISTINCT p.user) = :userCount');
@@ -108,7 +112,9 @@ class ChatRoomV2Repository extends ServiceEntityRepository
             $alias = 'cp' . $index; // Unique alias for each subquery
             $qb->andWhere('EXISTS (
                 SELECT 1 FROM App\Entity\ChatParticipantV2 ' . $alias . '
-                WHERE ' . $alias . '.chatRoom = cr AND ' . $alias . '.user = :user' . $index . '
+                WHERE ' . $alias . '.chatRoom = cr
+                AND ' . $alias . '.user = :user' . $index . '
+                AND ' . $alias . '.deletedAt IS NULL
             )')
             ->setParameter('user' . $index, $userId);
         }
@@ -121,6 +127,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
     /**
      * Find user's chat rooms for a specific product.
      * Returns all rooms where user is participant for given product.
+     * Excludes rooms where the user has soft-deleted their participation.
      *
      * @return ChatRoomV2[]
      */
@@ -129,6 +136,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
         return $this->createQueryBuilder('cr')
             ->innerJoin('cr.participants', 'p')
             ->where('p.user = :user')
+            ->andWhere('p.deletedAt IS NULL')
             ->andWhere('cr.productId = :productId')
             ->setParameter('user', $user)
             ->setParameter('productId', $productId)

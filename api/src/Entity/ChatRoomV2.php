@@ -10,9 +10,11 @@ use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
 use App\Repository\ChatRoomV2Repository;
 use App\State\ChatRoomV2CollectionProvider;
 use App\State\ChatRoomV2Processor;
+use App\State\LeaveRoomProcessor;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -41,6 +43,12 @@ use Symfony\Component\Validator\Constraints as Assert;
         ),
         new Patch(security: "is_granted('EDIT', object)"),
         new Delete(security: "is_granted('DELETE', object)"),
+        new Post(
+            uriTemplate: '/v2/chat_rooms/{id}/leave',
+            security: "is_granted('VIEW', object)",
+            processor: LeaveRoomProcessor::class,
+            name: 'leave_room'
+        ),
     ]
 )]
 class ChatRoomV2

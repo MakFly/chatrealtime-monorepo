@@ -11,6 +11,9 @@ use App\Repository\ChatRoomV2Repository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
+use Symfony\Component\Serializer\SerializerInterface;
 
 /**
  * ProductChatService - Business logic for product-based chat rooms.
@@ -24,6 +27,8 @@ final class ProductChatService implements ProductChatServiceInterface
         private readonly ChatRoomV2Repository $chatRoomV2Repository,
         private readonly ProductMockServiceInterface $productMockService,
         private readonly EntityManagerInterface $entityManager,
+        private readonly HubInterface $mercureHub,
+        private readonly SerializerInterface $serializer,
     ) {
     }
 
@@ -99,7 +104,55 @@ final class ProductChatService implements ProductChatServiceInterface
         $this->entityManager->persist($chatRoom);
         $this->entityManager->flush();
 
+        // Publish to Mercure for real-time synchronization
+        $this->publishToMercure($chatRoom);
+
         return $chatRoom;
+    }
+
+    /**
+     * Publish room creation to Mercure for real-time updates.
+     *
+     * Publishes to user-specific topics for both buyer and seller:
+     * - /chat-v2/rooms/user/{buyerId}
+     * - /chat-v2/rooms/user/{sellerId}
+     *
+     * This ensures both participants see the new room in their sidebar immediately.
+     */
+    private function publishToMercure(ChatRoomV2 $chatRoom): void
+    {
+        // Serialize room with same groups as API response
+        $data = $this->serializer->serialize($chatRoom, 'json', [
+            'groups' => ['chatRoomV2:read'],
+            'enable_max_depth' => true,
+        ]);
+
+        $topics = [];
+
+        // Publish to each participant's personal topic
+        foreach ($chatRoom->getParticipants() as $participant) {
+            $userId = $participant->getUser()->getId();
+            $topics[] = sprintf('/chat-v2/rooms/user/%d', $userId);
+        }
+
+        // Debug log
+        error_log(sprintf('[ProductChatService] 📤 Publishing room #%d "%s" (product: #%d) to %d topics',
+            $chatRoom->getId(),
+            $chatRoom->getName(),
+            $chatRoom->getProductId(),
+            count($topics)
+        ));
+
+        // Publish to Mercure
+        $update = new Update(
+            topics: $topics,
+            data: $data,
+            private: true, // Only subscribers with valid JWT can receive
+        );
+
+        $this->mercureHub->publish($update);
+
+        error_log(sprintf('[ProductChatService] ✅ Mercure publish completed for room #%d', $chatRoom->getId()));
     }
 
     /**

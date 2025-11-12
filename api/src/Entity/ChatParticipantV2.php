@@ -62,6 +62,10 @@ class ChatParticipantV2
     #[Groups(['chatParticipantV2:read', 'chatRoomV2:read'])]
     private \DateTimeImmutable $joinedAt;
 
+    #[ORM\Column(nullable: true)]
+    #[Groups(['chatParticipantV2:read'])]
+    private ?\DateTimeImmutable $deletedAt = null;
+
     public function __construct()
     {
         $this->joinedAt = new \DateTimeImmutable();
@@ -111,6 +115,37 @@ class ChatParticipantV2
     public function getJoinedAt(): \DateTimeImmutable
     {
         return $this->joinedAt;
+    }
+
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
+    public function setDeletedAt(?\DateTimeImmutable $deletedAt): static
+    {
+        $this->deletedAt = $deletedAt;
+
+        return $this;
+    }
+
+    public function softDelete(): static
+    {
+        $this->deletedAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deletedAt !== null;
+    }
+
+    public function restore(): static
+    {
+        $this->deletedAt = null;
+
+        return $this;
     }
 
     public function isAdmin(): bool

@@ -121,8 +121,12 @@ export function RealChatInterfaceV2({
       setCurrentRoom(existingRoom.id, existingRoom)
     } else {
       console.log('[RealChatInterfaceV2] 📭 No existing room - will create on first message')
+      // ✅ CRITICAL: Invalidate Mercure token when switching to a new product without an existing room
+      // This ensures we get a fresh token that will include the new room's topic after creation
+      console.log('[RealChatInterfaceV2] 🔄 Invalidating Mercure token to prepare for new room')
+      queryClient.invalidateQueries({ queryKey: ['mercure', 'token', 'v2'] })
     }
-  }, [rooms, currentProductId, currentSellerId, effectiveUser, setCurrentRoom])
+  }, [rooms, currentProductId, currentSellerId, effectiveUser, setCurrentRoom, queryClient])
 
   // Fetch messages for current room with Mercure real-time updates
   const {
@@ -313,6 +317,9 @@ export function RealChatInterfaceV2({
                     }
                   })
                   queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
+                  // ✅ CRITICAL: Invalidate Mercure token to get updated token with new room's topic
+                  console.log('[RealChatInterfaceV2] 🔄 Room created - invalidating Mercure token to include new room topic')
+                  queryClient.invalidateQueries({ queryKey: ['mercure', 'token', 'v2'] })
                 }}
                 onMessageSent={handleMessageSent}
                 addOptimisticMessage={handleAddOptimisticMessage}
@@ -358,22 +365,41 @@ export function RealChatInterfaceV2({
                     }
                   })
                   queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
+                  // ✅ CRITICAL: Invalidate Mercure token to get updated token with new room's topic
+                  console.log('[RealChatInterfaceV2] 🔄 Room created - invalidating Mercure token to include new room topic')
+                  queryClient.invalidateQueries({ queryKey: ['mercure', 'token', 'v2'] })
                 }}
                 onMessageSent={handleMessageSent}
                 addOptimisticMessage={handleAddOptimisticMessage}
                 updateOptimisticMessageStatus={handleUpdateOptimisticMessageStatus}
                 removeOptimisticMessage={removeOptimisticMessage}
                 currentUser={effectiveUser}
-                disabled={!connected}
+                disabled={false}
               />
             </div>
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center bg-background">
-            <div className="text-center">
-              <h2 className="text-2xl font-medium text-muted-foreground">
-                Chargement de la conversation...
-              </h2>
+            <div className="text-center space-y-4">
+              {effectiveProduct ? (
+                <>
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-semibold">
+                      {effectiveProduct.name}
+                    </h2>
+                    <p className="text-lg text-muted-foreground">
+                      {effectiveProduct.price} €
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Chargement de la conversation pour ce produit...
+                  </p>
+                </>
+              ) : (
+                <h2 className="text-2xl font-medium text-muted-foreground">
+                  Chargement de la conversation...
+                </h2>
+              )}
             </div>
           </div>
         )}

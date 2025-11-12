@@ -153,3 +153,10 @@ export async function getMercureTokenV2Client() {
 export async function joinChatRoomV2Client(roomId: number) {
   return clientPostV2(`${ENDPOINTS.CHAT_ROOMS}/${roomId}/join`, {})
 }
+
+/**
+ * Leave a chat room v2 (soft delete) (client-side)
+ */
+export async function leaveChatRoomV2Client(roomId: number) {
+  return clientPostV2<ChatRoomV2>(`${ENDPOINTS.CHAT_ROOMS}/${roomId}/leave`, {})
+}

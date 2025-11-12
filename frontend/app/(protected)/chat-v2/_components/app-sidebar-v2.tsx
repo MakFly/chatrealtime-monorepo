@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Package,
   Store,
+  Trash2,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -46,6 +47,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useChatRoomsV2 } from '@/lib/hooks/chat-v2/use-chat-rooms-v2'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
@@ -55,6 +57,18 @@ import type { Product } from '@/types/product'
 import { SettingsDialog } from '@/app/(protected)/chat/_components/settings-dialog'
 import { logoutAction } from '@/lib/actions/auth'
 import { ProductDetails } from '@/app/(protected)/marketplace/_components/product-details'
+import { leaveChatRoomV2Client } from '@/lib/api/chat-client-v2'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 type AppSidebarV2Props = React.ComponentProps<typeof Sidebar> & {
   product: Product | null
@@ -99,8 +113,12 @@ function getUserInitials(name: string | null | undefined, email: string): string
 export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
   const [searchQuery, setSearchQuery] = React.useState('')
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = React.useState(false)
+  const [showInitialSkeleton, setShowInitialSkeleton] = React.useState(true)
+  const [roomToDelete, setRoomToDelete] = React.useState<ChatRoomV2 | null>(null)
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   // Fetch current user
   const { data: currentUser, isLoading: isUserLoading } = useCurrentUser()
@@ -112,6 +130,23 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
   const { rooms, isLoading, error } = useChatRoomsV2({
     enabled: true,
   })
+
+  // Hide initial skeleton after first data load or after minimum display time
+  React.useEffect(() => {
+    // Always show skeleton for at least 500ms for better UX
+    const minDisplayTimer = setTimeout(() => {
+      setShowInitialSkeleton(false)
+    }, 500)
+
+    return () => clearTimeout(minDisplayTimer)
+  }, [])
+
+  // Also hide skeleton when data successfully loads
+  React.useEffect(() => {
+    if (!isLoading && rooms.length > 0) {
+      setShowInitialSkeleton(false)
+    }
+  }, [isLoading, rooms.length])
 
   // Filter rooms
   const filteredRooms = React.useMemo(() => {
@@ -157,6 +192,29 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
       if (userId) {
         router.push(`/chat-v2?productId=${room.productId}&userId=${userId}`)
       }
+    }
+  }
+
+  const handleDeleteRoom = async () => {
+    if (!roomToDelete) return
+
+    setIsDeleting(true)
+    try {
+      await leaveChatRoomV2Client(roomToDelete.id)
+
+      // Invalidate rooms cache to refetch the list
+      queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
+
+      // Close dialog
+      setRoomToDelete(null)
+
+      // If we're currently viewing this room, redirect to marketplace
+      router.push('/chat-v2')
+    } catch (error) {
+      console.error('Failed to delete room:', error)
+      // TODO: Show error toast
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -302,21 +360,37 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
             </SidebarGroupLabel>
           </div>
           <SidebarGroupContent>
-            {isLoading && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            {/* Priority 1: Show skeleton during initial load */}
+            {showInitialSkeleton ? (
+              <div className="px-3 space-y-3">
+                {/* Show 3 skeleton items while loading */}
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3 py-2">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
-
-            {error && (
+            ) : error ? (
+              /* Priority 2: Show error if present after skeleton disappears */
               <div className="px-4 py-6 text-center">
                 <p className="text-sm text-muted-foreground">
                   Erreur lors du chargement
                 </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => window.location.reload()}
+                >
+                  Réessayer
+                </Button>
               </div>
-            )}
-
-            {!isLoading && !error && filteredRooms.length === 0 && (
+            ) : filteredRooms.length === 0 ? (
+              /* Priority 3: Show empty state */
               <div className="px-4 py-4 text-center">
                 <p className="text-sm text-muted-foreground">
                   {searchQuery
@@ -324,42 +398,65 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
                     : 'Aucune conversation pour ce produit'}
                 </p>
               </div>
-            )}
-
-            {!isLoading && !error && filteredRooms.length > 0 && (
+            ) : (
+              /* Priority 4: Show rooms */
               <SidebarMenu>
                 {filteredRooms.map((room) => (
                   <SidebarMenuItem key={room.id}>
-                    <SidebarMenuButton
-                      onClick={() => handleRoomSelect(room)}
-                      className="h-auto py-3 px-3 hover:bg-accent w-full"
-                    >
-                      <div className="flex items-start gap-3 w-full">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback>
-                            <Package className="h-5 w-5" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-sm font-semibold truncate">
-                              {room.productTitle}
-                            </span>
-                            {room.updatedAt && (
-                              <span className="text-xs text-muted-foreground shrink-0">
-                                {formatTime(room.updatedAt)}
+                    <div className="group relative flex items-center">
+                      <SidebarMenuButton
+                        onClick={() => handleRoomSelect(room)}
+                        className="h-auto py-3 px-3 hover:bg-accent flex-1"
+                      >
+                        <div className="flex items-start gap-3 w-full">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback>
+                              <Package className="h-5 w-5" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-sm font-semibold truncate">
+                                {room.productTitle}
                               </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                              <Store className="h-3 w-3 mr-1" />
-                              Produit
-                            </Badge>
+                              {room.updatedAt && (
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  {formatTime(room.updatedAt)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                                <Store className="h-3 w-3 mr-1" />
+                                Produit
+                              </Badge>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </SidebarMenuButton>
+                      </SidebarMenuButton>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Options</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setRoomToDelete(room)}
+                            className="text-destructive focus:text-destructive cursor-pointer"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Supprimer la conversation
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -385,6 +482,33 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
         open={isSettingsDialogOpen}
         onOpenChange={setIsSettingsDialogOpen}
       />
+
+      {/* Delete Room Confirmation Dialog */}
+      <AlertDialog open={!!roomToDelete} onOpenChange={(open) => !open && setRoomToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la conversation ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action supprimera la conversation de votre liste. L'autre utilisateur conservera la conversation de son côté.
+              {roomToDelete && (
+                <span className="block mt-2 font-semibold">
+                  Conversation: {roomToDelete.productTitle}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteRoom}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Suppression...' : 'Supprimer'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   )
 }
