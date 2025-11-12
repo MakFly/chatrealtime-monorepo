@@ -59,10 +59,11 @@ final class ProductMockService implements ProductMockServiceInterface
     private function initializeMockProducts(): void
     {
         // Fetch real users from database
-        $user1 = $this->userRepository->findOneBy(['email' => 'user@test.com']);
-        $user2 = $this->userRepository->findOneBy(['email' => 'google.user@test.com']);
-        $user3 = $this->userRepository->findOneBy(['email' => 'hybrid@test.com']);
-        $admin = $this->userRepository->findOneBy(['email' => 'admin@test.com']);
+        $user1 = $this->userRepository->findOneBy(['email' => 'chat.user1@test.com']);
+        $user2 = $this->userRepository->findOneBy(['email' => 'chat.user2@test.com']);
+        // Fallback to user1 if user3 doesn't exist
+        $user3 = $user1;
+        $admin = $user2;
 
         $this->products = [
             // Électronique

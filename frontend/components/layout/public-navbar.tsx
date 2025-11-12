@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { useIsAuthenticated } from '@/lib/store/use-auth-store'
+import { useIsAuthenticated } from '@/lib/stores/use-auth-store'
 import { useUser } from '@/lib/contexts/user-context'
 import { logoutAction } from '@/lib/actions/auth'
 

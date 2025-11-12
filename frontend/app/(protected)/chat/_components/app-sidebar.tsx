@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Search, Settings, MoreHorizontal, Plus, Loader2, User as UserIcon, LogOut, Trash2, Edit } from "lucide-react"
-import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
 
 import {
@@ -32,7 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
-import { useChatStore } from "@/lib/stores/use-chat-store"
 import { isGlobalAdmin } from "@/lib/utils/roles"
 import type { ChatRoom } from "@/types/chat"
 import type { User } from "@/types/auth"

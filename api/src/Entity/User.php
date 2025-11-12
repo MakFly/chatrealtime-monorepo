@@ -32,11 +32,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['message:read'])] // ✅ Include ID in messages
+    #[Groups(['message:read', 'messageV2:read'])] // ✅ Include ID in messages V1 and V2
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
-    #[Groups(['message:read'])] // ✅ Include email in messages
+    #[Groups(['message:read', 'messageV2:read'])] // ✅ Include email in messages V1 and V2
     private ?string $email = null;
 
     /**
@@ -61,11 +61,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?string $googleRefreshToken = null;
 
     #[ORM\Column(length: 255, nullable: true)]
-    #[Groups(['message:read'])] // ✅ Include name in messages
+    #[Groups(['message:read', 'messageV2:read'])] // ✅ Include name in messages V1 and V2
     private ?string $name = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
-    #[Groups(['message:read'])] // ✅ Include picture in messages
+    #[Groups(['message:read', 'messageV2:read'])] // ✅ Include picture in messages V1 and V2
     private ?string $picture = null;
 
     #[ORM\Column(nullable: true)]

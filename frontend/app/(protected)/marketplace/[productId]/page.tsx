@@ -19,16 +19,17 @@ export default function ProductDetailPage({
   const router = useRouter()
   const { productId } = use(params)
   const productIdNum = parseInt(productId, 10)
-  const { data: currentUser } = useCurrentUser()
-  const { data: product, isLoading, error } = useProduct(productIdNum)
+  const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
+  const { data: product, isLoading: isLoadingProduct, error } = useProduct(productIdNum)
 
   const handleContactClick = () => {
     if (product?.seller) {
-      router.push(`/chat-v2/${productIdNum}/${product.seller.id}`)
+      router.push(`/chat-v2?productId=${productIdNum}&userId=${product.seller.id}`)
     }
   }
 
-  if (isLoading) {
+  // Wait for both user and product to load to avoid button flash
+  if (isLoadingProduct || isLoadingUser) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-4xl space-y-6">
         <Skeleton className="h-10 w-32" />

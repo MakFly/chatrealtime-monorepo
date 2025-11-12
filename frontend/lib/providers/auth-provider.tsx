@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useAuthStore } from '@/lib/store/use-auth-store'
+import { useAuthStore } from '@/lib/stores/use-auth-store'
 import { UserProvider } from '@/lib/contexts/user-context'
 import { useTokenRefresh } from '@/lib/hooks/use-token-refresh'
 import type { User } from '@/types/auth'

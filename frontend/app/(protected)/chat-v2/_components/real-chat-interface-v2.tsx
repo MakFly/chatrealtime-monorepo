@@ -10,8 +10,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatStoreV2 } from '@/lib/stores/use-chat-store-v2'
-import { useChatMessagesV2 } from '@/lib/hooks/use-chat-messages-v2'
-import { useChatRoomsV2 } from '@/lib/hooks/use-chat-rooms-v2'
+import { useChatMessagesV2 } from '@/lib/hooks/chat-v2/use-chat-messages-v2'
+import { useChatRoomsV2 } from '@/lib/hooks/chat-v2/use-chat-rooms-v2'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { useProduct } from '@/lib/hooks/use-products'
 import { useMercureConnectionMonitor } from '@/lib/hooks/use-mercure-connection-monitor'
@@ -72,73 +72,57 @@ export function RealChatInterfaceV2({
   // Fetch all rooms to get the current room details
   const { rooms } = useChatRoomsV2({ enabled: true })
 
-  // Calculate current room from rooms list - memoized to avoid unnecessary re-renders
+  // Calculate current room from rooms list OR use currentRoom from store if available
+  // This fixes the "Loading conversation..." issue when room is just created
   const currentRoomData = useMemo(() => {
     if (!roomId) return null
-    return rooms.find((room: ChatRoomV2) => room.id === roomId) || null
-  }, [roomId, rooms])
+    // First try to find in rooms list
+    const roomInList = rooms.find((room: ChatRoomV2) => room.id === roomId)
+    // If not found, use currentRoom from store (happens when room just created)
+    return roomInList || currentRoom
+  }, [roomId, rooms, currentRoom])
 
-  // Create or find room on mount
+  // ✅ NEW WORKFLOW: Don't create room on mount - wait for first message
+  // Just validate that we have the required data
   useEffect(() => {
-    const initializeRoom = async () => {
-      console.log('[RealChatInterfaceV2] 🔍 Initializing room...', {
-        hasEffectiveUser: !!effectiveUser,
-        effectiveUserId: effectiveUser?.id,
-        currentProductId,
-        currentSellerId,
-      })
-
-      if (!effectiveUser || !currentProductId || !currentSellerId) {
-        console.log('[RealChatInterfaceV2] ⏸️ Skipping - missing data')
-        return
-      }
-
-      // Prevent self-chat (convert effectiveUser.id to number for comparison)
-      const currentUserIdNum = parseInt(effectiveUser.id, 10)
-      if (currentUserIdNum === currentSellerId) {
-        console.log('[RealChatInterfaceV2] ❌ Self-chat prevented')
-        setRoomError('Vous ne pouvez pas discuter avec vous-même.')
-        return
-      }
-
-      setIsCreatingRoom(true)
-      setRoomError(null)
-
-      try {
-        console.log(`[RealChatInterfaceV2] 📞 Calling createProductChatClient(${currentProductId}, ${currentSellerId})...`)
-        const response = await createProductChatClient(currentProductId, currentSellerId)
-
-        console.log('[RealChatInterfaceV2] 📥 API Response:', {
-          hasData: !!response.data,
-          hasError: !!response.error,
-          status: response.status,
-          data: response.data,
-          error: response.error,
-        })
-
-        if (response.data) {
-          console.log(`[RealChatInterfaceV2] ✅ Room created/found: ${response.data.id}`)
-          setRoomId(response.data.id)
-          setCurrentRoom(response.data.id, response.data)
-          // Invalidate rooms list to refresh
-          queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
-        } else if (response.error) {
-          const errorMsg = response.error.message || 'Impossible de créer la conversation.'
-          console.error('[RealChatInterfaceV2] ❌ API Error:', errorMsg)
-          setRoomError(errorMsg)
-        } else {
-          setRoomError('Impossible de créer la conversation.')
-        }
-      } catch (error) {
-        console.error('[RealChatInterfaceV2] ❌ Exception:', error)
-        setRoomError('Erreur lors de la création de la conversation.')
-      } finally {
-        setIsCreatingRoom(false)
-      }
+    if (!effectiveUser || !currentProductId || !currentSellerId) {
+      console.log('[RealChatInterfaceV2] ⏸️ Missing data - waiting...')
+      return
     }
 
-    initializeRoom()
-  }, [effectiveUser, currentProductId, currentSellerId, setCurrentRoom, queryClient])
+    // Prevent self-chat
+    const currentUserIdNum = parseInt(effectiveUser.id, 10)
+    if (currentUserIdNum === currentSellerId) {
+      console.log('[RealChatInterfaceV2] ❌ Self-chat prevented')
+      setRoomError('Vous ne pouvez pas discuter avec vous-même.')
+      return
+    }
+
+    // Clear any previous errors
+    setRoomError(null)
+    console.log('[RealChatInterfaceV2] ✅ Ready to create room on first message', {
+      productId: currentProductId,
+      sellerId: currentSellerId,
+    })
+  }, [effectiveUser, currentProductId, currentSellerId])
+
+  // Try to find existing room from rooms list
+  useEffect(() => {
+    if (!currentProductId || !currentSellerId || !effectiveUser) return
+
+    // Find existing room for this product + seller combination
+    const existingRoom = rooms.find((room: ChatRoomV2) => {
+      return room.productId === currentProductId
+    })
+
+    if (existingRoom) {
+      console.log('[RealChatInterfaceV2] 📦 Found existing room:', existingRoom.id)
+      setRoomId(existingRoom.id)
+      setCurrentRoom(existingRoom.id, existingRoom)
+    } else {
+      console.log('[RealChatInterfaceV2] 📭 No existing room - will create on first message')
+    }
+  }, [rooms, currentProductId, currentSellerId, effectiveUser, setCurrentRoom])
 
   // Fetch messages for current room with Mercure real-time updates
   const {
@@ -151,7 +135,7 @@ export function RealChatInterfaceV2({
     removeOptimisticMessage,
   } = useChatMessagesV2({
     roomId: roomId || 0,
-    mercureToken: initialMercureToken,
+    // Don't pass initialMercureToken - let the hook fetch its own token that auto-refreshes
     enabled: roomId !== null && roomId > 0,
   })
 
@@ -295,8 +279,10 @@ export function RealChatInterfaceV2({
         </div>
 
         {/* Messages display or empty state - Scrollable middle section */}
+        {/* ✅ NEW: Show chat interface even without roomId if we have productId + sellerId (will create room on first message) */}
         {roomId !== null && roomId > 0 ? (
           <>
+            {/* Existing room - show messages */}
             <div className="flex-1 min-h-0">
               <ChatMessagesV2
                 messages={messages}
@@ -310,12 +296,75 @@ export function RealChatInterfaceV2({
             <div className="shrink-0">
               <ChatInputV2
                 roomId={roomId}
+                productId={currentProductId}
+                sellerId={currentSellerId}
+                onRoomCreated={(room) => {
+                  setRoomId(room.id)
+                  setCurrentRoom(room.id, room)
+                  // Add to sidebar cache
+                  queryClient.setQueryData(['chatRoomsV2'], (old: any) => {
+                    if (!old) return { member: [room], totalItems: 1 }
+                    const exists = old.member?.find((r: ChatRoomV2) => r.id === room.id)
+                    if (exists) return old
+                    return {
+                      ...old,
+                      member: [room, ...(old.member || [])],
+                      totalItems: (old.totalItems || 0) + 1,
+                    }
+                  })
+                  queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
+                }}
                 onMessageSent={handleMessageSent}
                 addOptimisticMessage={handleAddOptimisticMessage}
                 updateOptimisticMessageStatus={handleUpdateOptimisticMessageStatus}
                 removeOptimisticMessage={removeOptimisticMessage}
                 currentUser={effectiveUser}
                 disabled={!connected || isLoadingMessages}
+              />
+            </div>
+          </>
+        ) : currentProductId && currentSellerId ? (
+          <>
+            {/* No room yet, but ready to create on first message */}
+            <div className="flex-1 min-h-0 flex items-center justify-center bg-muted/20">
+              <div className="text-center space-y-2">
+                <p className="text-lg text-muted-foreground">
+                  Aucun message pour le moment
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Envoyez votre premier message pour démarrer la conversation
+                </p>
+              </div>
+            </div>
+
+            {/* Input for creating room and sending first message */}
+            <div className="shrink-0">
+              <ChatInputV2
+                roomId={roomId}
+                productId={currentProductId}
+                sellerId={currentSellerId}
+                onRoomCreated={(room) => {
+                  setRoomId(room.id)
+                  setCurrentRoom(room.id, room)
+                  // Add to sidebar cache
+                  queryClient.setQueryData(['chatRoomsV2'], (old: any) => {
+                    if (!old) return { member: [room], totalItems: 1 }
+                    const exists = old.member?.find((r: ChatRoomV2) => r.id === room.id)
+                    if (exists) return old
+                    return {
+                      ...old,
+                      member: [room, ...(old.member || [])],
+                      totalItems: (old.totalItems || 0) + 1,
+                    }
+                  })
+                  queryClient.invalidateQueries({ queryKey: ['chatRoomsV2'] })
+                }}
+                onMessageSent={handleMessageSent}
+                addOptimisticMessage={handleAddOptimisticMessage}
+                updateOptimisticMessageStatus={handleUpdateOptimisticMessageStatus}
+                removeOptimisticMessage={removeOptimisticMessage}
+                currentUser={effectiveUser}
+                disabled={!connected}
               />
             </div>
           </>

@@ -7,18 +7,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle } from 'lucide-react'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
+import type { Product } from '@/types/product'
 
 export function ProductList() {
   const router = useRouter()
-  const { data: currentUser } = useCurrentUser()
-  const { data: products, isLoading, error } = useProducts()
+  const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
+  const { data: products, isLoading: isLoadingProducts, error } = useProducts()
 
   const handleContactClick = (productId: number, sellerId: number) => {
-    // Redirect to chat-v2 page
-    router.push(`/chat-v2/${productId}/${sellerId}`)
+    // Redirect to chat-v2 page with search params
+    router.push(`/chat-v2?productId=${productId}&userId=${sellerId}`)
   }
 
-  if (isLoading) {
+  // Wait for both user and products to load to avoid button flash
+  if (isLoadingProducts || isLoadingUser) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
@@ -54,7 +56,7 @@ export function ProductList() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {products.map((product) => (
+      {products.map((product: Product) => (
         <ProductCard
           key={product.id}
           product={product}

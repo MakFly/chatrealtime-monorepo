@@ -112,7 +112,7 @@ export function ProductDetails({
                 <div>
                   <p className="text-sm font-medium">Vendeur</p>
                   <p className="text-sm text-muted-foreground">
-                    {product.seller.username || product.seller.email}
+                    {product.seller.name || product.seller.email}
                   </p>
                 </div>
               </div>
@@ -122,7 +122,7 @@ export function ProductDetails({
           {showContactButton && onContactClick && (
             <>
               <Separator />
-              <Button onClick={onContactClick} size="lg" className="w-full">
+              <Button onClick={onContactClick} size="lg" className="w-full cursor-pointer">
                 Contacter le vendeur
               </Button>
             </>

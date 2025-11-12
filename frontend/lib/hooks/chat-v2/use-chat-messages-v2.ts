@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMercureTyped } from './use-mercure'
+import { useMercureTyped } from '../use-mercure'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
 import { getMessagesV2Client } from '@/lib/api/chat-client-v2'
 import type {
@@ -49,6 +49,13 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
   // Use external token if provided, otherwise use fetched token
   const mercureToken = externalToken || fetchedToken
 
+  // Debug: log token changes
+  useEffect(() => {
+    if (mercureToken) {
+      console.log('[useChatMessagesV2] 🔑 Mercure token updated:', mercureToken.substring(0, 20) + '...')
+    }
+  }, [mercureToken])
+
   // Fetch initial messages via API
   const {
     data: messagesData,
@@ -60,8 +67,11 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
     queryFn: async () => {
       console.log('[useChatMessagesV2] 🔍 Fetching messages from API for room:', roomId)
       const response = await getMessagesV2Client(roomId)
-      console.log('[useChatMessagesV2] ✅ Fetched from API:', response.member?.length, 'messages')
-      return response
+      console.log('[useChatMessagesV2] 📦 Raw API response:', response)
+      console.log('[useChatMessagesV2] 📊 response.data:', response.data)
+      console.log('[useChatMessagesV2] ✅ Fetched from API:', response.data?.member?.length, 'messages')
+      // Return response.data instead of response (ApiResponse wrapper)
+      return response.data
     },
     enabled: enabled && roomId > 0,
     // CRITICAL: Must match server QueryClient config to prevent refetch after SSR
@@ -155,9 +165,10 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
   )
 
   // Subscribe to Mercure for real-time updates
+  // ✅ CRITICAL: Only connect if roomId > 0 to prevent /chat-v2/room/0 subscription
   const { connected, error: mercureError } = useMercureTyped<MercureMessageV2Update>({
     topics,
-    token: mercureToken,
+    token: roomId > 0 ? mercureToken : null, // Block connection if roomId is invalid
     onMessage: handleMercureMessage,
     reconnect: true,
     reconnectDelay: 3000,

@@ -23,8 +23,12 @@ export function ProductCard({
   showContactButton = true,
   compact = false,
 }: ProductCardProps) {
+
+
   const handleContact = (e: React.MouseEvent) => {
+    console.log('handleContact', product.id, product.seller?.id)
     e.preventDefault()
+    e.stopPropagation() // Empêche la propagation vers le Link parent
     if (onContactClick && product.seller) {
       onContactClick(product.id, product.seller.id)
     }
@@ -102,7 +106,7 @@ export function ProductCard({
 
         {showContactButton && (
           <CardFooter className="pt-0">
-            <Button onClick={handleContact} className="w-full">
+            <Button onClick={handleContact} className="w-full cursor-pointer">
               Contacter le vendeur
             </Button>
           </CardFooter>

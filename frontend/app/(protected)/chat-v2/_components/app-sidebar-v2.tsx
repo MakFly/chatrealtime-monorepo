@@ -47,7 +47,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { useChatRoomsV2 } from '@/lib/hooks/use-chat-rooms-v2'
+import { useChatRoomsV2 } from '@/lib/hooks/chat-v2/use-chat-rooms-v2'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { useChatStoreV2 } from '@/lib/stores/use-chat-store-v2'
 import type { ChatRoomV2 } from '@/types/chat-v2'
@@ -117,22 +117,51 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
   const filteredRooms = React.useMemo(() => {
     if (!rooms) return []
 
-    return rooms.filter((room) =>
+    return rooms.filter((room: ChatRoomV2) =>
       room.productTitle.toLowerCase().includes(searchQuery.toLowerCase())
     )
   }, [rooms, searchQuery])
 
   const handleRoomSelect = (room: ChatRoomV2) => {
-    if (!product) return
-    // Navigate to room based on product and seller
-    const seller = room.participants?.find((p) => p.role === 'member')
-    if (seller) {
-      router.push(`/chat-v2/${product.id}/${seller.user.id}`)
+    // Navigate to room based on productId and sellerId
+    // Find the other participant (not the current user)
+    const currentUserId = currentUser ? parseInt(currentUser.id, 10) : 0
+
+    const seller = room.participants?.find((p) => {
+      // p.user can be either an IRI string ("/api/v1/users/2") or a User object
+      let participantId: number
+
+      if (typeof p.user === 'string') {
+        // Extract ID from IRI: "/api/v1/users/2" -> 2
+        const match = p.user.match(/\/(\d+)$/)
+        participantId = match ? parseInt(match[1], 10) : 0
+      } else {
+        // User object with id property
+        participantId = parseInt(p.user.id, 10)
+      }
+
+      return participantId !== currentUserId && participantId > 0
+    })
+
+    if (room.productId && seller) {
+      // Extract userId from seller
+      let userId: string
+      if (typeof seller.user === 'string') {
+        // Extract ID from IRI
+        const match = seller.user.match(/\/(\d+)$/)
+        userId = match ? match[1] : ''
+      } else {
+        userId = seller.user.id
+      }
+
+      if (userId) {
+        router.push(`/chat-v2?productId=${room.productId}&userId=${userId}`)
+      }
     }
   }
 
   return (
-    <Sidebar {...props} collapsible="none">
+    <Sidebar {...props}>
       <SidebarHeader className="border-b">
         <SidebarMenu>
           <SidebarMenuItem>

@@ -8,9 +8,9 @@
 
 import { useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMercureTyped } from './use-mercure'
+import { useMercureTyped } from '../use-mercure'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
-import { useCurrentUser } from './use-current-user'
+import { useCurrentUser } from '../use-current-user'
 import { getChatRoomsV2Client } from '@/lib/api/chat-client-v2'
 import type { ChatRoomV2, ChatRoomV2Collection } from '@/types/chat-v2'
 
@@ -58,8 +58,11 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
     queryFn: async () => {
       console.log('[useChatRoomsV2] 🔍 Fetching chat rooms V2 from API...')
       const response = await getChatRoomsV2Client()
-      console.log('[useChatRoomsV2] ✅ Fetched from API:', response.member?.length, 'rooms')
-      return response
+      console.log('[useChatRoomsV2] 📦 Raw API response:', response)
+      console.log('[useChatRoomsV2] 📊 response.data:', response.data)
+      console.log('[useChatRoomsV2] ✅ Fetched from API:', response.data?.member?.length, 'rooms')
+      // Return response.data instead of response (ApiResponse wrapper)
+      return response.data
     },
     enabled,
     // CRITICAL: Must match server QueryClient config to prevent refetch after SSR
@@ -112,6 +115,12 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
 
           // Add new room
           console.log('[useChatRoomsV2] ➕ Adding new room to cache:', update.id)
+
+          // ✅ CRITICAL: Invalidate Mercure token cache to get updated topics
+          // When a new room is created, the JWT needs to be refreshed to include the new room's topic
+          console.log('[useChatRoomsV2] 🔄 Invalidating Mercure token cache to refresh topics')
+          queryClient.invalidateQueries({ queryKey: ['mercure', 'token', 'v2'] })
+
           return {
             ...old,
             member: [update, ...old.member],

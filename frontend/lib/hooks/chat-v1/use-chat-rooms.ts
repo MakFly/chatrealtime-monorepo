@@ -8,9 +8,9 @@
 
 import { useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMercureTyped } from './use-mercure'
+import { useMercureTyped } from '../use-mercure'
 import { useMercureToken } from './use-mercure-token'
-import { useCurrentUser } from './use-current-user'
+import { useCurrentUser } from '../use-current-user'
 import type {
   ChatRoomFilters,
   PaginationParams,

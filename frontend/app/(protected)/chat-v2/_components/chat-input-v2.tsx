@@ -12,10 +12,14 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { sendMessageV2Client } from '@/lib/api/chat-client-v2'
+import { sendMessageV2Client, createProductChatClient } from '@/lib/api/chat-client-v2'
+import type { ChatRoomV2 } from '@/types/chat-v2'
 
 type ChatInputV2Props = {
   roomId: number | null
+  productId?: number | null // For creating room on first message
+  sellerId?: number | null // For creating room on first message
+  onRoomCreated?: (room: ChatRoomV2) => void // Callback when room is created
   onMessageSent?: () => void
   addOptimisticMessage?: (message: {
     id: number
@@ -39,6 +43,9 @@ type ChatInputV2Props = {
 
 export function ChatInputV2({
   roomId,
+  productId,
+  sellerId,
+  onRoomCreated,
   onMessageSent,
   addOptimisticMessage,
   updateOptimisticMessageStatus,
@@ -56,10 +63,6 @@ export function ChatInputV2({
 
     // Validation
     if (!input.trim()) return
-    if (!roomId) {
-      setError('Aucune conversation sélectionnée')
-      return
-    }
     if (disabled || isSending) return
 
     const content = input.trim()
@@ -67,28 +70,54 @@ export function ChatInputV2({
     setError(null)
     setIsSending(true)
 
-    // Generate temporary ID for optimistic message
-    const optimisticId = -Date.now()
-
-    // Add optimistic message IMMEDIATELY (before fetch)
-    if (addOptimisticMessage && currentUser) {
-      addOptimisticMessage({
-        id: optimisticId,
-        content,
-        author: {
-          id: currentUser.id,
-          email: currentUser.email,
-          name: currentUser.name,
-        },
-        createdAt: new Date().toISOString(),
-      })
-    }
-
     try {
+      // ✅ NEW WORKFLOW: Create room on first message if it doesn't exist
+      let effectiveRoomId = roomId
+
+      if (!effectiveRoomId && productId && sellerId) {
+        console.log('[ChatInputV2] 📦 Creating room for product:', productId, 'seller:', sellerId)
+
+        const roomResponse = await createProductChatClient(productId, sellerId)
+
+        if (!roomResponse.data) {
+          throw new Error('Impossible de créer la conversation')
+        }
+
+        effectiveRoomId = roomResponse.data.id
+        console.log('[ChatInputV2] ✅ Room created:', effectiveRoomId)
+
+        // Notify parent component that room was created
+        if (onRoomCreated) {
+          onRoomCreated(roomResponse.data)
+        }
+      }
+
+      // Ensure we have a room ID before sending
+      if (!effectiveRoomId) {
+        throw new Error('Aucune conversation sélectionnée')
+      }
+
+      // Generate temporary ID for optimistic message
+      const optimisticId = -Date.now()
+
+      // Add optimistic message IMMEDIATELY (before fetch)
+      if (addOptimisticMessage && currentUser) {
+        addOptimisticMessage({
+          id: optimisticId,
+          content,
+          author: {
+            id: currentUser.id,
+            email: currentUser.email,
+            name: currentUser.name,
+          },
+          createdAt: new Date().toISOString(),
+        })
+      }
+
       // Send message via V2 API
       const response = await sendMessageV2Client({
         content,
-        chatRoomV2: `/api/v2/chat_rooms/${roomId}`, // IRI format for API Platform
+        chatRoom: `/api/v2/chat_rooms/${effectiveRoomId}`, // IRI format for API Platform
       })
 
       if (!response.data) {
@@ -111,7 +140,8 @@ export function ChatInputV2({
       )
 
       // Remove optimistic message on error
-      if (removeOptimisticMessage) {
+      if (removeOptimisticMessage && addOptimisticMessage) {
+        const optimisticId = -Date.now()
         removeOptimisticMessage(optimisticId)
       }
 
@@ -131,7 +161,8 @@ export function ChatInputV2({
 
   const charCount = input.length
   const isInputEmpty = !input.trim()
-  const isDisabled = disabled || isSending || !roomId
+  // ✅ Allow sending even without roomId if we have productId and sellerId (will create room on send)
+  const isDisabled = disabled || isSending || (!roomId && (!productId || !sellerId))
 
   return (
     <div className="border-t bg-background">
@@ -152,7 +183,7 @@ export function ChatInputV2({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                !roomId
+                !roomId && (!productId || !sellerId)
                   ? 'Sélectionnez une conversation...'
                   : 'Écrire un message au vendeur...'
               }
@@ -190,7 +221,7 @@ export function ChatInputV2({
           </div>
 
           {/* Helper Text */}
-          {!roomId && (
+          {!roomId && (!productId || !sellerId) && (
             <p className="mt-2 text-xs text-muted-foreground text-center">
               Sélectionnez une conversation pour commencer à discuter
             </p>

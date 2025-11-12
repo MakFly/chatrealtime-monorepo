@@ -62,8 +62,8 @@ function formatTimestamp(dateString: string): string {
 /**
  * Get initials from user name or email
  */
-function getInitials(name: string | null, email: string): string {
-  if (name) {
+function getInitials(name: string | null | undefined, email: string | undefined): string {
+  if (name && typeof name === 'string' && name.trim()) {
     return name
       .split(' ')
       .map((n) => n[0])
@@ -71,7 +71,10 @@ function getInitials(name: string | null, email: string): string {
       .toUpperCase()
       .slice(0, 2)
   }
-  return email.slice(0, 2).toUpperCase()
+  if (email && typeof email === 'string' && email.trim()) {
+    return email.slice(0, 2).toUpperCase()
+  }
+  return '??'
 }
 
 /**

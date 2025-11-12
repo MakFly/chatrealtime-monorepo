@@ -63,12 +63,11 @@ export default async function ChatV2Page({ searchParams }: ChatV2PageProps) {
   // ✅ Create QueryClient with React cache() (ensures single instance per request)
   const queryClient = getQueryClient()
 
-  // Fetch data in parallel (only if productId and userId provided)
-  const shouldFetchChatData = productId > 0 && userId > 0
-
+  // Fetch data in parallel
+  // ✅ Always fetch rooms (sidebar needs them even without productId/userId)
   const [initialMercureToken, initialRooms, initialProduct, currentUser] = await Promise.all([
     getMercureTokenV2(),
-    shouldFetchChatData ? getChatRoomsV2Server() : Promise.resolve([]),
+    getChatRoomsV2Server(), // Always fetch - sidebar needs all rooms
     productId > 0 ? getProductServer(productId) : Promise.resolve(null),
     getCurrentUser(),
   ])
@@ -82,12 +81,11 @@ export default async function ChatV2Page({ searchParams }: ChatV2PageProps) {
   }
 
   // Hydrate rooms V2 cache (used by useChatRoomsV2 hook)
-  if (initialRooms && initialRooms.length > 0) {
-    queryClient.setQueryData(['chatRoomsV2'], {
-      member: initialRooms,
-      totalItems: initialRooms.length,
-    })
-  }
+  // ✅ Always hydrate, even if empty, to prevent client-side refetch
+  queryClient.setQueryData(['chatRoomsV2'], {
+    member: initialRooms || [],
+    totalItems: initialRooms?.length || 0,
+  })
 
   // Hydrate Mercure token V2 cache (used by useMercureTokenV2 hook)
   if (initialMercureToken) {

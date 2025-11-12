@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { JWT_CONFIG } from '@/lib/config/jwt'
-import { useAuthStore, useTokenExpiration } from '@/lib/store/use-auth-store'
+import { useAuthStore, useTokenExpiration } from '@/lib/stores/use-auth-store'
 
 /**
  * BroadcastChannel message types for cross-tab communication
