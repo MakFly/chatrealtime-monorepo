@@ -30,7 +30,7 @@ export default async function ProtectedLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <ProtectedNavbar />
+      {/* <ProtectedNavbar /> */}
       <main className="flex-1">{children}</main>
     </div>
   )

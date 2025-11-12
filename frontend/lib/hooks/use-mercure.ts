@@ -165,7 +165,13 @@ export function useMercure(options: MercureOptions) {
             onErrorRef.current(event)
           }
 
-          console.error('[Mercure] Connection error:', event)
+          // Only log error if EventSource is in CLOSED state (real error)
+          // Ignore errors during CONNECTING state (happens on page refresh)
+          if (eventSource.readyState === EventSource.CLOSED) {
+            console.error('[Mercure] Connection error:', event)
+          } else {
+            console.log('[Mercure] Connection interrupted (page refresh/navigation), reconnecting...')
+          }
 
           // Close the connection
           eventSource.close()

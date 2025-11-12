@@ -46,7 +46,7 @@ export default async function RootLayout({
         <Providers>
           <AuthProvider initialUser={user} initialTokenExpiresAt={normalizedTokenExpiresAt}>
             {children}
-            <AuthDebugButton />
+            {/* <AuthDebugButton /> */}
           </AuthProvider>
         </Providers>
       </body>

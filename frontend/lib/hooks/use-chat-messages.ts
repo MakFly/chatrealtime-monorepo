@@ -88,7 +88,12 @@ export function useChatMessages(options: UseChatMessagesOptions) {
       return data as MessageCollection
     },
     enabled: enabled && roomId > 0,
-    staleTime: 1000 * 60, // 1 minute
+    // CRITICAL: staleTime must match server QueryClient config to prevent refetch after SSR
+    staleTime: 1000 * 60, // 60 seconds - matches server config
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect (Mercure handles updates)
   })
 
   const messages = messagesData?.member || []

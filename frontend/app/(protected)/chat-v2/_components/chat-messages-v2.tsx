@@ -137,7 +137,7 @@ export function ChatMessagesV2({
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex-1 overflow-y-auto">
+      <div className="h-full overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
           <MessageSkeleton />
           <MessageSkeleton />
@@ -148,7 +148,7 @@ export function ChatMessagesV2({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl px-2 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
         {messages.map((message) => {
           const author = message.author

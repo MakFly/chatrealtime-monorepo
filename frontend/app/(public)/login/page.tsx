@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/login-form"
+import { QuickLogin } from "@/components/quick-login"
 
 interface LoginPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -12,6 +13,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className="bg-muted flex min-h-[calc(100vh-8rem)] flex-col items-center justify-center gap-6 p-6 md:p-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
+        <QuickLogin redirect={redirect} />
         <LoginForm error={error} redirect={redirect} />
       </div>
     </div>

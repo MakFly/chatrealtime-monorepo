@@ -6,6 +6,7 @@
 'use client'
 
 import { useEffect, useRef, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatStore } from '@/lib/stores/use-chat-store'
 import { useChatMessages } from '@/lib/hooks/use-chat-messages'
@@ -19,44 +20,64 @@ import { ChatInput } from './chat-input'
 import { AppSidebar } from './app-sidebar'
 import { MercureConnectionLostDialog } from './mercure-connection-lost-dialog'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
+import type { User } from '@/types/auth'
 
 type RealChatInterfaceProps = {
   initialMercureToken: string | null
   initialRoomId: number | null
+  initialUser: User | null
 }
 
-export function RealChatInterface({ initialMercureToken, initialRoomId }: RealChatInterfaceProps) {
+export function RealChatInterface({ initialMercureToken, initialRoomId, initialUser }: RealChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
 
-  // Get current authenticated user
+  // ✅ Get roomId from URL search params for instant client-side navigation
+  const urlRoomId = parseInt(searchParams.get('roomId') || '0', 10)
+  const currentRoomId = urlRoomId > 0 ? urlRoomId : initialRoomId
+
+  // Get current authenticated user (use initialUser from server as fallback)
   const { data: currentUser } = useCurrentUser()
+  const effectiveUser = currentUser ?? initialUser
 
   // Get current room from store
   const { setCurrentRoom, currentRoom } = useChatStore()
 
   // Fetch all rooms to get the current room details
-  const { rooms } = useChatRooms({ enabled: true })
+  // Pass Mercure token to avoid duplicate token fetch
+  // Cache is hydrated by HydrationBoundary from server, so no fetch will happen
+  const { rooms } = useChatRooms({
+    enabled: true,
+    mercureToken: initialMercureToken
+  })
 
   // Calculate current room from rooms list - memoized to avoid unnecessary re-renders
   const currentRoomData = useMemo(() => {
-    if (!initialRoomId) return null
-    return rooms.find((room) => room.id === initialRoomId) || null
-  }, [initialRoomId, rooms])
+    if (!currentRoomId) return null
+    return rooms.find((room) => room.id === currentRoomId) || null
+  }, [currentRoomId, rooms])
 
-  // ✅ Sync URL param (initialRoomId) with store on mount/change
-  // Only sync when initialRoomId changes, not when room data updates
+  // ✅ Sync URL param (currentRoomId) with store on mount/change
+  // Only sync when currentRoomId changes, not when room data updates
   useEffect(() => {
-    if (initialRoomId !== null && initialRoomId > 0) {
-      setCurrentRoom(initialRoomId, null) // Don't store the object, just the ID
+    if (currentRoomId !== null && currentRoomId > 0) {
+      setCurrentRoom(currentRoomId, null) // Don't store the object, just the ID
     } else {
       setCurrentRoom(null, null)
     }
-  }, [initialRoomId, setCurrentRoom])
+  }, [currentRoomId, setCurrentRoom])
 
   // ✅ Auto-join public rooms when accessing them
   useEffect(() => {
     const autoJoinPublicRoom = async () => {
+      // Wait for user to be loaded before attempting to join
+      // This ensures the access_token cookie is available and valid
+      if (!effectiveUser) {
+        console.log('[RealChatInterface] Waiting for user to be loaded before joining room...')
+        return
+      }
+
       if (!currentRoomData || currentRoomData.type !== 'public') {
         return // Only auto-join public rooms
       }
@@ -68,7 +89,8 @@ export function RealChatInterface({ initialMercureToken, initialRoomId }: RealCh
         if (response.data) {
           console.log(`[RealChatInterface] ✅ Joined room ${currentRoomData.id}, participants: ${response.data.participant_count}`)
           // Invalidate rooms list to refresh participant count
-          queryClient.invalidateQueries({ queryKey: ['chatRooms'] })
+          // FIX: Use exact: false to match all chatRooms queries (with/without filters)
+          queryClient.invalidateQueries({ queryKey: ['chatRooms'], exact: false })
         }
       } catch (error) {
         console.error('[RealChatInterface] Failed to auto-join public room:', error)
@@ -76,7 +98,7 @@ export function RealChatInterface({ initialMercureToken, initialRoomId }: RealCh
     }
 
     autoJoinPublicRoom()
-  }, [currentRoomData?.id, currentRoomData?.type, queryClient])
+  }, [currentRoomData?.id, currentRoomData?.type, effectiveUser, queryClient])
 
   // Fetch messages for current room with Mercure real-time updates
   // TanStack Query handles enabled: false by not executing the query
@@ -89,9 +111,9 @@ export function RealChatInterface({ initialMercureToken, initialRoomId }: RealCh
     updateOptimisticMessageStatus,
     removeOptimisticMessage,
   } = useChatMessages({
-    roomId: initialRoomId || 0,
+    roomId: currentRoomId || 0,
     mercureToken: initialMercureToken,
-    enabled: initialRoomId !== null && initialRoomId > 0,
+    enabled: currentRoomId !== null && currentRoomId > 0,
   })
 
   // Monitor Mercure connection and show dialog if connection lost
@@ -104,11 +126,15 @@ export function RealChatInterface({ initialMercureToken, initialRoomId }: RealCh
   // Force refetch when room changes
   // React Query doesn't always refetch when a query goes from disabled to enabled
   useEffect(() => {
-    if (initialRoomId && initialRoomId > 0) {
+    if (currentRoomId && currentRoomId > 0) {
       // Invalidate the query to force fresh data
-      queryClient.invalidateQueries({ queryKey: ['messages', initialRoomId] })
+      // FIX: Use exact: false to match partial queryKey (with pagination)
+      queryClient.invalidateQueries({
+        queryKey: ['messages', currentRoomId],
+        exact: false,
+      })
     }
-  }, [initialRoomId, queryClient])
+  }, [currentRoomId, queryClient])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -129,50 +155,54 @@ export function RealChatInterface({ initialMercureToken, initialRoomId }: RealCh
 
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar rooms={rooms} />
 
-      <SidebarInset>
-        <div className="flex h-full flex-col">
-          {/* Header with room info and Mercure connection status */}
+      <SidebarInset className="flex flex-col h-screen overflow-hidden">
+        {/* Header with room info and Mercure connection status - Fixed at top */}
+        <div className="shrink-0">
           <ChatHeader
             currentRoom={currentRoomData}
             connected={connected}
           />
+        </div>
 
-          {/* Messages display */}
-          {initialRoomId !== null && initialRoomId > 0 ? (
-            <>
+        {/* Messages display or empty state - Scrollable middle section */}
+        {currentRoomId !== null && currentRoomId > 0 ? (
+          <>
+            <div className="flex-1 min-h-0">
               <ChatMessages
                 messages={messages}
                 isLoading={isLoading}
-                currentUserId={currentUser?.id || null}
+                currentUserId={effectiveUser?.id || null}
                 messagesEndRef={messagesEndRef}
               />
+            </div>
 
-              {/* Input for sending messages */}
+            {/* Input for sending messages - Fixed at bottom */}
+            <div className="shrink-0">
               <ChatInput
-                roomId={initialRoomId}
+                roomId={currentRoomId}
                 onMessageSent={handleMessageSent}
                 addOptimisticMessage={addOptimisticMessage}
                 updateOptimisticMessageStatus={updateOptimisticMessageStatus}
                 removeOptimisticMessage={removeOptimisticMessage}
-                currentUser={currentUser}
+                currentUser={effectiveUser}
                 disabled={!connected || isLoading}
               />
-            </>
-          ) : (
-            <div className="flex h-full flex-1 items-center justify-center bg-background">
-              <div className="text-center">
-                <h2 className="text-2xl font-medium text-muted-foreground">
-                  Sélectionnez une conversation
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Choisissez une conversation dans la barre latérale pour commencer à discuter
-                </p>
-              </div>
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center bg-background">
+            <div className="text-center">
+              <h2 className="text-2xl font-medium text-muted-foreground">
+                Sélectionnez une conversation
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Choisissez une conversation dans la barre latérale pour commencer à discuter
+              </p>
+            </div>
+          </div>
+        )}
       </SidebarInset>
 
       {/* Mercure Connection Lost Dialog */}

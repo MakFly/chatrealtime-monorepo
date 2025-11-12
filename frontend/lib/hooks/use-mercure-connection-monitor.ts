@@ -33,10 +33,24 @@ export function useMercureConnectionMonitor(
 
   const [showDialog, setShowDialog] = useState(false)
   const hasShownDialogRef = useRef(false)
+  const isUnloadingRef = useRef(false)
+
+  // Track page unload to avoid showing dialog during refresh/navigation
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      isUnloadingRef.current = true
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   // Detect when error occurs and show dialog ONCE
+  // But ignore errors during page unload (refresh, navigation)
   useEffect(() => {
-    if (error && !hasShownDialogRef.current) {
+    if (error && !hasShownDialogRef.current && !isUnloadingRef.current) {
       console.log('[MercureConnectionMonitor] Connection error detected, showing dialog')
       setShowDialog(true)
       hasShownDialogRef.current = true

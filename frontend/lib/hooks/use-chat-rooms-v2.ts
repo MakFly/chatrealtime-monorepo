@@ -6,7 +6,7 @@
 
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMercureTyped } from './use-mercure'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
@@ -56,13 +56,18 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
   } = useQuery({
     queryKey: ['chatRoomsV2'],
     queryFn: async () => {
-      console.log('[useChatRoomsV2] 🔍 Fetching chat rooms V2...')
+      console.log('[useChatRoomsV2] 🔍 Fetching chat rooms V2 from API...')
       const response = await getChatRoomsV2Client()
-      console.log('[useChatRoomsV2] ✅ Fetched rooms:', response.member?.length)
+      console.log('[useChatRoomsV2] ✅ Fetched from API:', response.member?.length, 'rooms')
       return response
     },
     enabled,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    // CRITICAL: Must match server QueryClient config to prevent refetch after SSR
+    staleTime: 1000 * 60, // 60 seconds - matches server config
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect (Mercure handles updates)
   })
 
   const rooms = roomsData?.member || []
@@ -119,20 +124,31 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
   )
 
   // Subscribe to Mercure for real-time updates
-  const { connected, lastMessage } = useMercureTyped<ChatRoomV2>({
+  const { connected, error: mercureError } = useMercureTyped<ChatRoomV2>({
     topics,
-    hubUrl: process.env.NEXT_PUBLIC_MERCURE_HUB_URL || 'https://localhost/.well-known/mercure',
     token: mercureToken,
     onMessage: handleMercureRoom,
-    enabled: enabled && !!mercureToken && topics.length > 0,
+    reconnect: true,
+    reconnectDelay: 3000,
   })
+
+  // ✅ Log only when data changes (not on every render)
+  useEffect(() => {
+    if (rooms.length > 0) {
+      console.log('[useChatRoomsV2] 🏠 Extracted rooms:', rooms.length, 'rooms')
+    }
+  }, [rooms.length])
+
+  useEffect(() => {
+    console.log('[useChatRoomsV2] 🔌 Mercure connection status:', connected ? 'Connected' : 'Disconnected')
+  }, [connected])
 
   return {
     rooms,
     isLoading,
-    error,
-    connected,
+    error: error || (mercureError ? new Error(mercureError) : null),
     refetch,
-    lastMessage,
+    totalItems: roomsData?.totalItems || 0,
+    connected, // Expose connection status
   }
 }

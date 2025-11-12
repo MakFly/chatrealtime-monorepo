@@ -10,9 +10,12 @@ export function Providers({ children }: { children: ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
+            // CRITICAL: Must match server QueryClient config to prevent refetch after SSR
+            staleTime: 60 * 1000, // 60 seconds - matches server config
             gcTime: 5 * 60 * 1000, // 5 minutes
-            refetchOnWindowFocus: false,
+            refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+            refetchOnWindowFocus: false, // Don't refetch on window focus
+            refetchOnReconnect: false, // Don't refetch on reconnect
           },
         },
       })

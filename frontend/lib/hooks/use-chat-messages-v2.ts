@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMercureTyped } from './use-mercure'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
@@ -56,15 +56,20 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['messagesV2', roomId],
+    queryKey: ['messagesV2', roomId, undefined],
     queryFn: async () => {
-      console.log('[useChatMessagesV2] 🔍 Fetching messages for room:', roomId)
+      console.log('[useChatMessagesV2] 🔍 Fetching messages from API for room:', roomId)
       const response = await getMessagesV2Client(roomId)
-      console.log('[useChatMessagesV2] ✅ Fetched messages:', response.member?.length)
+      console.log('[useChatMessagesV2] ✅ Fetched from API:', response.member?.length, 'messages')
       return response
     },
     enabled: enabled && roomId > 0,
-    staleTime: 1000 * 60, // 1 minute
+    // CRITICAL: Must match server QueryClient config to prevent refetch after SSR
+    staleTime: 1000 * 60, // 60 seconds - matches server config
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect (Mercure handles updates)
   })
 
   const messages = messagesData?.member || []
@@ -98,7 +103,7 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
 
       // Add new message to cache
       queryClient.setQueryData(
-        ['messagesV2', roomId],
+        ['messagesV2', roomId, undefined],
         (old: MessageV2Collection | undefined) => {
           if (!old) return old
 
@@ -150,14 +155,12 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
   )
 
   // Subscribe to Mercure for real-time updates
-  const { connected, lastMessage } = useMercureTyped<MercureMessageV2Update>({
+  const { connected, error: mercureError } = useMercureTyped<MercureMessageV2Update>({
     topics,
-    hubUrl:
-      process.env.NEXT_PUBLIC_MERCURE_HUB_URL ||
-      'https://localhost/.well-known/mercure',
     token: mercureToken,
     onMessage: handleMercureMessage,
-    enabled: enabled && !!mercureToken && roomId > 0,
+    reconnect: true,
+    reconnectDelay: 3000,
   })
 
   // Combine server messages with optimistic messages
@@ -174,20 +177,42 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
     setOptimisticMessages((prev) => [...prev, message])
   }, [])
 
+  // Function to update optimistic message status
+  const updateOptimisticMessageStatus = useCallback(
+    (messageId: number, status: 'sending' | 'delivered' | 'error') => {
+      console.log('[useChatMessagesV2] 🔄 Updating optimistic message status:', messageId, status)
+      setOptimisticMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, status } : msg))
+      )
+    },
+    []
+  )
+
   // Function to remove optimistic message
   const removeOptimisticMessage = useCallback((messageId: number) => {
     console.log('[useChatMessagesV2] 🗑️  Removing optimistic message:', messageId)
     setOptimisticMessages((prev) => prev.filter((msg) => msg.id !== messageId))
   }, [])
 
+  // ✅ Log only when data changes (not on every render)
+  useEffect(() => {
+    if (allMessages.length > 0 && roomId > 0) {
+      console.log('[useChatMessagesV2] 💬 Messages for room', roomId, ':', allMessages.length)
+    }
+  }, [allMessages.length, roomId])
+
+  useEffect(() => {
+    console.log('[useChatMessagesV2] 🔌 Mercure connection status:', connected ? 'Connected' : 'Disconnected')
+  }, [connected])
+
   return {
     messages: allMessages,
     isLoading,
-    error,
+    error: error || (mercureError ? new Error(mercureError) : null),
     connected,
     refetch,
-    lastMessage,
     addOptimisticMessage,
+    updateOptimisticMessageStatus,
     removeOptimisticMessage,
   }
 }

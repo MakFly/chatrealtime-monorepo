@@ -6,7 +6,7 @@
 
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMercureTyped } from './use-mercure'
 import { useMercureToken } from './use-mercure-token'
@@ -74,7 +74,7 @@ export function useChatRooms(options: UseChatRoomsOptions = {}) {
   } = useQuery({
     queryKey: ['chatRooms', filters, pagination],
     queryFn: async () => {
-      console.log('[useChatRooms] 🔍 Fetching chat rooms...')
+      console.log('[useChatRooms] 🔍 Fetching chat rooms from API...')
 
       // Build query parameters
       const params = new URLSearchParams()
@@ -97,14 +97,17 @@ export function useChatRooms(options: UseChatRoomsOptions = {}) {
       }
 
       const data = await response.json()
-      console.log('[useChatRooms] ✅ Response data:', data)
-      console.log('[useChatRooms] 📦 Keys in response:', Object.keys(data))
-      console.log('[useChatRooms] 🔢 member length:', (data as any).member?.length)
+      console.log('[useChatRooms] ✅ Fetched from API:', data.member?.length, 'rooms')
 
       return data as ChatRoomCollection
     },
     enabled,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    // CRITICAL: staleTime must match server QueryClient config to prevent refetch after SSR
+    staleTime: 1000 * 60, // 60 seconds - matches server config
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect (Mercure handles updates)
   })
 
   const rooms = roomsData?.member || []
@@ -170,8 +173,16 @@ export function useChatRooms(options: UseChatRoomsOptions = {}) {
     reconnectDelay: 3000,
   })
 
-  console.log('[useChatRooms] 🏠 Extracted rooms:', rooms.length, 'rooms')
-  console.log('[useChatRooms] 🔌 Mercure connection status:', connected ? 'Connected' : 'Disconnected')
+  // ✅ Log only when data changes (not on every render)
+  useEffect(() => {
+    if (rooms.length > 0) {
+      console.log('[useChatRooms] 🏠 Extracted rooms:', rooms.length, 'rooms')
+    }
+  }, [rooms.length])
+
+  useEffect(() => {
+    console.log('[useChatRooms] 🔌 Mercure connection status:', connected ? 'Connected' : 'Disconnected')
+  }, [connected])
 
   return {
     rooms,

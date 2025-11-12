@@ -31,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { useChatRooms } from "@/lib/hooks/use-chat-rooms"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import { useChatStore } from "@/lib/stores/use-chat-store"
 import { isGlobalAdmin } from "@/lib/utils/roles"
@@ -44,7 +43,9 @@ import { logoutAction } from "@/lib/actions/auth"
 import { deleteChatRoomClient } from "@/lib/api/chat-client"
 import { useQueryClient } from "@tanstack/react-query"
 
-type AppSidebarProps = React.ComponentProps<typeof Sidebar>
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  rooms: ChatRoom[]
+}
 
 function truncateMessage(message: string | undefined, maxLength = 40): string {
   if (!message) return "Aucun message"
@@ -131,7 +132,7 @@ function canDeleteRoom(room: ChatRoom, currentUser: User | null | undefined): bo
   return currentUserParticipant?.role === 'admin'
 }
 
-export function AppSidebar({ ...props }: AppSidebarProps) {
+export function AppSidebar({ rooms, ...props }: AppSidebarProps) {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = React.useState(false)
@@ -143,11 +144,6 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
 
   // Fetch current user
   const { data: currentUser, isLoading: isUserLoading } = useCurrentUser()
-
-  // Fetch chat rooms
-  const { rooms, isLoading, error } = useChatRooms({
-    enabled: true,
-  })
 
   // ✅ Extract currentRoomId from URL pathname
   const currentRoomId = React.useMemo(() => {
@@ -177,8 +173,8 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
   }, [rooms, searchQuery])
 
   const handleRoomSelect = (room: ChatRoom) => {
-    // ✅ Navigate to room URL instead of using store
-    router.push(`/chat/${room.id}`)
+    // ✅ Navigate using search params for instant client-side navigation (no page reload)
+    router.push(`/chat?roomId=${room.id}`, { scroll: false })
   }
 
   const handleCreateRoom = () => {
@@ -192,7 +188,8 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
       await deleteChatRoomClient(roomToDelete.id)
 
       // Invalidate chat rooms cache to refetch the list
-      queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+      // FIX: Use correct queryKey 'chatRooms' (not 'chat-rooms')
+      queryClient.invalidateQueries({ queryKey: ['chatRooms'], exact: false })
 
       // If the deleted room was the current room, navigate to /chat
       if (currentRoomId === roomToDelete.id) {
@@ -319,21 +316,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
             </Button>
           </div>
           <SidebarGroupContent>
-            {isLoading && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {error && (
-              <div className="px-4 py-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Erreur lors du chargement
-                </p>
-              </div>
-            )}
-
-            {!isLoading && !error && myRooms.length === 0 && (
+            {myRooms.length === 0 && (
               <div className="px-4 py-4 text-center">
                 <p className="text-sm text-muted-foreground">
                   {searchQuery ? "Aucune conversation trouvée" : "Aucune conversation"}
@@ -341,7 +324,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
               </div>
             )}
 
-            {!isLoading && !error && myRooms.length > 0 && (
+            {myRooms.length > 0 && (
               <SidebarMenu>
                 {myRooms.map((room) => (
                   <SidebarMenuItem key={room.id}>
@@ -432,7 +415,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
             </SidebarGroupLabel>
           </div>
           <SidebarGroupContent>
-            {!isLoading && !error && publicRooms.length === 0 && (
+            {publicRooms.length === 0 && (
               <div className="px-4 py-4 text-center">
                 <p className="text-sm text-muted-foreground">
                   {searchQuery ? "Aucun salon trouvé" : "Aucun salon public"}
@@ -440,7 +423,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
               </div>
             )}
 
-            {!isLoading && !error && publicRooms.length > 0 && (
+            {publicRooms.length > 0 && (
               <SidebarMenu>
                 {publicRooms.map((room) => (
                   <SidebarMenuItem key={room.id}>

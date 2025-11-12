@@ -6,7 +6,8 @@
 
 'use client'
 
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatStoreV2 } from '@/lib/stores/use-chat-store-v2'
 import { useChatMessagesV2 } from '@/lib/hooks/use-chat-messages-v2'
@@ -24,29 +25,46 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { User } from '@/types/auth'
+import type { Product } from '@/types/product'
+import type { ChatRoomV2, MessageV2 } from '@/types/chat-v2'
 
 type RealChatInterfaceV2Props = {
   initialMercureToken: string | null
-  productId: number
-  sellerId: number
+  initialProductId: number | null
+  initialSellerId: number | null
+  initialUser: User | null
+  initialProduct: Product | null
 }
 
 export function RealChatInterfaceV2({
   initialMercureToken,
-  productId,
-  sellerId,
+  initialProductId,
+  initialSellerId,
+  initialUser,
+  initialProduct,
 }: RealChatInterfaceV2Props) {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null as unknown as HTMLDivElement)
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
   const [roomId, setRoomId] = useState<number | null>(null)
   const [isCreatingRoom, setIsCreatingRoom] = useState(false)
   const [roomError, setRoomError] = useState<string | null>(null)
 
-  // Get current authenticated user
-  const { data: currentUser } = useCurrentUser()
+  // ✅ Get productId and userId from URL search params for instant client-side navigation
+  const urlProductId = parseInt(searchParams.get('productId') || '0', 10)
+  const urlUserId = parseInt(searchParams.get('userId') || '0', 10)
 
-  // Fetch product details
-  const { data: product, isLoading: isLoadingProduct, error: productError } = useProduct(productId)
+  const currentProductId = urlProductId > 0 ? urlProductId : initialProductId
+  const currentSellerId = urlUserId > 0 ? urlUserId : initialSellerId
+
+  // Get current authenticated user (use initialUser from server as fallback)
+  const { data: currentUser } = useCurrentUser()
+  const effectiveUser = currentUser ?? initialUser
+
+  // Fetch product details (use initialProduct from server as fallback)
+  const { data: product, isLoading: isLoadingProduct, error: productError } = useProduct(currentProductId || 0)
+  const effectiveProduct = product ?? initialProduct
 
   // Get current room and sidebar state from store
   const { setCurrentRoom, currentRoom, isProductDetailsOpen } = useChatStoreV2()
@@ -57,27 +75,27 @@ export function RealChatInterfaceV2({
   // Calculate current room from rooms list - memoized to avoid unnecessary re-renders
   const currentRoomData = useMemo(() => {
     if (!roomId) return null
-    return rooms.find((room) => room.id === roomId) || null
+    return rooms.find((room: ChatRoomV2) => room.id === roomId) || null
   }, [roomId, rooms])
 
   // Create or find room on mount
   useEffect(() => {
     const initializeRoom = async () => {
       console.log('[RealChatInterfaceV2] 🔍 Initializing room...', {
-        hasCurrentUser: !!currentUser,
-        currentUserId: currentUser?.id,
-        productId,
-        sellerId,
+        hasEffectiveUser: !!effectiveUser,
+        effectiveUserId: effectiveUser?.id,
+        currentProductId,
+        currentSellerId,
       })
 
-      if (!currentUser || !productId || !sellerId) {
+      if (!effectiveUser || !currentProductId || !currentSellerId) {
         console.log('[RealChatInterfaceV2] ⏸️ Skipping - missing data')
         return
       }
 
-      // Prevent self-chat (convert currentUser.id to number for comparison)
-      const currentUserIdNum = parseInt(currentUser.id, 10)
-      if (currentUserIdNum === sellerId) {
+      // Prevent self-chat (convert effectiveUser.id to number for comparison)
+      const currentUserIdNum = parseInt(effectiveUser.id, 10)
+      if (currentUserIdNum === currentSellerId) {
         console.log('[RealChatInterfaceV2] ❌ Self-chat prevented')
         setRoomError('Vous ne pouvez pas discuter avec vous-même.')
         return
@@ -87,8 +105,8 @@ export function RealChatInterfaceV2({
       setRoomError(null)
 
       try {
-        console.log(`[RealChatInterfaceV2] 📞 Calling createProductChatClient(${productId}, ${sellerId})...`)
-        const response = await createProductChatClient(productId, sellerId)
+        console.log(`[RealChatInterfaceV2] 📞 Calling createProductChatClient(${currentProductId}, ${currentSellerId})...`)
+        const response = await createProductChatClient(currentProductId, currentSellerId)
 
         console.log('[RealChatInterfaceV2] 📥 API Response:', {
           hasData: !!response.data,
@@ -120,7 +138,7 @@ export function RealChatInterfaceV2({
     }
 
     initializeRoom()
-  }, [currentUser, productId, sellerId, setCurrentRoom, queryClient])
+  }, [effectiveUser, currentProductId, currentSellerId, setCurrentRoom, queryClient])
 
   // Fetch messages for current room with Mercure real-time updates
   const {
@@ -164,11 +182,52 @@ export function RealChatInterfaceV2({
     // No need to invalidate cache - Mercure handles real-time updates
   }
 
+  /**
+   * Adapter function to convert MessageV2 to ChatInputV2 optimistic message format
+   */
+  const handleAddOptimisticMessage = useCallback((message: {
+    id: number
+    content: string
+    author: {
+      id: string
+      email: string
+      name: string | null
+    }
+    createdAt: string
+  }) => {
+    // Convert to full MessageV2 format with complete User object
+    const fullAuthor: User = {
+      id: message.author.id,
+      email: message.author.email,
+      name: message.author.name,
+      picture: effectiveUser?.picture || null,
+      roles: effectiveUser?.roles || [],
+      created_at: effectiveUser?.created_at || null,
+      has_google_account: effectiveUser?.has_google_account || false,
+    }
+
+    const fullMessage: MessageV2 = {
+      ...message,
+      author: fullAuthor,
+      chatRoom: { '@id': `/api/v2/chat_rooms/${roomId}`, '@type': 'ChatRoomV2', name: '' },
+      status: 'pending',
+    }
+    addOptimisticMessage(fullMessage)
+  }, [addOptimisticMessage, roomId, effectiveUser])
+
+  /**
+   * Adapter function to convert status from ChatInputV2 ('sent' | 'delivered') to V2 hook format
+   */
+  const handleUpdateOptimisticMessageStatus = useCallback((messageId: number, status: 'sent' | 'delivered') => {
+    // Map 'sent' to 'delivered' (both mean the same in our context)
+    updateOptimisticMessageStatus(messageId, status === 'sent' ? 'delivered' : 'delivered')
+  }, [updateOptimisticMessageStatus])
+
   // Show loading state while creating room or loading product
   if (isCreatingRoom || isLoadingProduct) {
     return (
       <SidebarProvider>
-        <AppSidebarV2 product={product || null} />
+        <AppSidebarV2 product={effectiveProduct} />
         <SidebarInset>
           <div className="flex h-full flex-col">
             <div className="border-b p-4">
@@ -192,7 +251,7 @@ export function RealChatInterfaceV2({
   if (roomError || productError) {
     return (
       <SidebarProvider>
-        <AppSidebarV2 product={product || null} />
+        <AppSidebarV2 product={effectiveProduct} />
         <SidebarInset>
           <div className="flex h-full items-center justify-center p-4">
             <div className="max-w-md space-y-4">
@@ -207,9 +266,9 @@ export function RealChatInterfaceV2({
               <Alert>
                 <AlertDescription className="text-xs space-y-1">
                   <p><strong>Debug:</strong></p>
-                  <p>Product ID: {productId}</p>
-                  <p>Seller ID: {sellerId}</p>
-                  <p>Current User: {currentUser ? `${currentUser.id} (${currentUser.email})` : 'Not loaded'}</p>
+                  <p>Product ID: {currentProductId}</p>
+                  <p>Seller ID: {currentSellerId}</p>
+                  <p>Current User: {effectiveUser ? `${effectiveUser.id} (${effectiveUser.email})` : 'Not loaded'}</p>
                   <p>Room ID: {roomId || 'null'}</p>
                 </AlertDescription>
               </Alert>
@@ -223,48 +282,52 @@ export function RealChatInterfaceV2({
   // Show chat interface
   return (
     <SidebarProvider>
-      <AppSidebarV2 product={product || null} />
+      <AppSidebarV2 product={effectiveProduct} />
 
-      <SidebarInset>
-        <div className="flex h-full flex-col">
-          {/* Header with product info and Mercure connection status */}
+      <SidebarInset className="flex flex-col h-screen overflow-hidden">
+        {/* Header with product info and Mercure connection status - Fixed at top */}
+        <div className="shrink-0">
           <ChatHeaderV2
             currentRoom={currentRoomData}
-            product={product || null}
+            product={effectiveProduct}
             connected={connected}
           />
+        </div>
 
-          {/* Messages display */}
-          {roomId !== null && roomId > 0 ? (
-            <>
+        {/* Messages display or empty state - Scrollable middle section */}
+        {roomId !== null && roomId > 0 ? (
+          <>
+            <div className="flex-1 min-h-0">
               <ChatMessagesV2
                 messages={messages}
                 isLoading={isLoadingMessages}
-                currentUserId={currentUser?.id || null}
+                currentUserId={effectiveUser?.id || null}
                 messagesEndRef={messagesEndRef}
               />
+            </div>
 
-              {/* Input for sending messages */}
+            {/* Input for sending messages - Fixed at bottom */}
+            <div className="shrink-0">
               <ChatInputV2
                 roomId={roomId}
                 onMessageSent={handleMessageSent}
-                addOptimisticMessage={addOptimisticMessage}
-                updateOptimisticMessageStatus={updateOptimisticMessageStatus}
+                addOptimisticMessage={handleAddOptimisticMessage}
+                updateOptimisticMessageStatus={handleUpdateOptimisticMessageStatus}
                 removeOptimisticMessage={removeOptimisticMessage}
-                currentUser={currentUser}
+                currentUser={effectiveUser}
                 disabled={!connected || isLoadingMessages}
               />
-            </>
-          ) : (
-            <div className="flex h-full flex-1 items-center justify-center bg-background">
-              <div className="text-center">
-                <h2 className="text-2xl font-medium text-muted-foreground">
-                  Chargement de la conversation...
-                </h2>
-              </div>
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center bg-background">
+            <div className="text-center">
+              <h2 className="text-2xl font-medium text-muted-foreground">
+                Chargement de la conversation...
+              </h2>
+            </div>
+          </div>
+        )}
       </SidebarInset>
 
       {/* Mercure Connection Lost Dialog */}
