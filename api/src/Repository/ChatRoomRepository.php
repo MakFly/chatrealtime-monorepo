@@ -60,13 +60,32 @@ class ChatRoomRepository extends ServiceEntityRepository
      */
     public function findAccessibleByUser(User $user): array
     {
-        return $this->createQueryBuilder('cr')
-            ->leftJoin('cr.participants', 'p')
-            ->where('p.user = :user OR cr.type = :publicType')
+        // Use two separate queries and merge results to avoid LEFT JOIN complexity
+        $participantRooms = $this->createQueryBuilder('cr')
+            ->innerJoin('cr.participants', 'p')
+            ->where('p.user = :user')
             ->setParameter('user', $user)
-            ->setParameter('publicType', 'public')
-            ->orderBy('cr.updatedAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        $publicRooms = $this->createQueryBuilder('cr')
+            ->where('cr.type = :publicType')
+            ->setParameter('publicType', 'public')
+            ->getQuery()
+            ->getResult();
+
+        // Merge and deduplicate by ID
+        $rooms = [];
+        foreach ($participantRooms as $room) {
+            $rooms[$room->getId()] = $room;
+        }
+        foreach ($publicRooms as $room) {
+            $rooms[$room->getId()] = $room;
+        }
+
+        // Sort by updatedAt DESC
+        usort($rooms, fn($a, $b) => $b->getUpdatedAt() <=> $a->getUpdatedAt());
+
+        return array_values($rooms);
     }
 }

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Controller;
+namespace App\Controller\V2;
 
 use App\Entity\User;
-use App\Service\MercureJwtGeneratorV2;
+use App\Service\V2\MercureJwtGeneratorV2;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\AsController;

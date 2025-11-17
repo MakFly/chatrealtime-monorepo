@@ -78,6 +78,13 @@ class ChatRoom
     #[Groups(['chatRoom:read'])]
     private \DateTimeImmutable $updatedAt;
 
+    /**
+     * Transient property for unread count (not persisted to database)
+     * Set dynamically by ChatRoomCollectionProvider
+     */
+    #[Groups(['chatRoom:read'])]
+    private int $unreadCount = 0;
+
     public function __construct()
     {
         $this->messages = new ArrayCollection();
@@ -183,6 +190,18 @@ class ChatRoom
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getUnreadCount(): int
+    {
+        return $this->unreadCount;
+    }
+
+    public function setUnreadCount(int $unreadCount): static
+    {
+        $this->unreadCount = $unreadCount;
+
+        return $this;
     }
 
     #[ORM\PrePersist]

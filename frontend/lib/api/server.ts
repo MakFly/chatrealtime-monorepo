@@ -32,7 +32,7 @@ async function serverRequest<T>(
   options?: RequestOptions
 ): Promise<ApiResponse<T>> {
   const cookieStore = await cookies()
-  const accessToken = cookieStore.get('accessToken')?.value
+  const accessToken = cookieStore.get('access_token')?.value
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',

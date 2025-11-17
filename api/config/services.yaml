@@ -61,16 +61,33 @@ services:
             - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_decoded, method: onJWTDecoded }
 
     # Mercure JWT Generator
-    App\Service\MercureJwtGenerator:
+    App\Service\V1\MercureJwtGenerator:
         arguments:
             $mercureJwtSecret: '%env(MERCURE_JWT_SECRET)%'
 
     # Mercure JWT Generator V2 (for marketplace chat)
-    App\Service\MercureJwtGeneratorV2:
+    App\Service\V2\MercureJwtGeneratorV2:
         arguments:
             $mercureJwtSecret: '%env(MERCURE_JWT_SECRET)%'
+
+    # Product Mock Service Interface binding
+    App\Service\V2\ProductMockServiceInterface:
+        class: App\Service\V2\ProductMockService
+
+    # Product Chat Service Interface binding
+    App\Service\V2\ProductChatServiceInterface:
+        class: App\Service\V2\ProductChatService
 
     # Doctrine Extensions for API Platform
     App\Doctrine\Extension\MessageAccessExtension:
         tags:
             - { name: api_platform.doctrine.orm.query_extension.collection }
+
+    # Doctrine Event Subscribers
+    App\EventSubscriber\MessagePostV1Subscriber:
+        tags:
+            - { name: doctrine.event_subscriber }
+
+    App\EventSubscriber\MessagePostV2Subscriber:
+        tags:
+            - { name: doctrine.event_subscriber }

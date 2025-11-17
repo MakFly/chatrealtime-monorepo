@@ -24,7 +24,6 @@ type UseChatRoomsOptions = {
   enabled?: boolean
   mercureToken?: string | null // Optional: if provided, skip client-side token fetch
 }
-
 /**
  * Hook for fetching and subscribing to chat rooms
  *

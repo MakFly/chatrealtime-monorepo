@@ -57,13 +57,21 @@ final class MessageAccessExtension implements QueryCollectionExtensionInterface
         // Return messages where:
         // 1. User is a participant of the chat room (private/group rooms)
         // 2. OR the chat room is public (auto-join for all authenticated users)
+        //
+        // ✅ FIX: For public rooms, we don't need to check if user is a participant
+        // We use a conditional LEFT JOIN to only join participants for the current user
         $queryBuilder
             ->innerJoin(sprintf('%s.chatRoom', $rootAlias), 'chatRoom')
-            ->leftJoin('chatRoom.participants', $participantAlias)
+            ->leftJoin(
+                'chatRoom.participants',
+                $participantAlias,
+                'WITH',
+                sprintf('%s.user = :currentUser', $participantAlias)
+            )
             ->andWhere(
                 $queryBuilder->expr()->orX(
-                    sprintf('%s.user = :currentUser', $participantAlias),
-                    'chatRoom.type = :publicType'
+                    sprintf('%s.id IS NOT NULL', $participantAlias), // User is a participant
+                    'chatRoom.type = :publicType' // OR room is public
                 )
             )
             ->setParameter('currentUser', $user)

@@ -3,6 +3,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { LogOut, Home } from "lucide-react"
 import { logoutAction } from "@/lib/actions/auth"
+import { NotificationsPopover } from "@/components/notifications-popover"
 import Link from "next/link"
 
 export function SiteHeader() {
@@ -16,6 +17,7 @@ export function SiteHeader() {
         />
         <h1 className="text-base font-medium">Dashboard</h1>
         <div className="ml-auto flex items-center gap-2">
+          <NotificationsPopover />
           <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
             <Link href="/">
               <Home className="h-4 w-4 mr-2" />

@@ -7,7 +7,7 @@ namespace App\State;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProviderInterface;
 use App\DTO\ProductV2;
-use App\Service\ProductMockServiceInterface;
+use App\Service\V2\ProductMockServiceInterface;
 
 /**
  * ProductV2Provider - State provider for product resources

@@ -26,6 +26,7 @@ final class MessageVoterTest extends TestCase
     {
         $user = new User();
         $chatRoom = new ChatRoom();
+        $chatRoom->setType('direct');
         $message = new Message();
         $message->setChatRoom($chatRoom);
 
@@ -45,6 +46,7 @@ final class MessageVoterTest extends TestCase
     {
         $user = new User();
         $chatRoom = new ChatRoom();
+        $chatRoom->setType('direct');
         $message = new Message();
         $message->setChatRoom($chatRoom);
 

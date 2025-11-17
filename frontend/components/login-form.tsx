@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -46,16 +47,22 @@ export function LoginForm({ className, error, redirect }: LoginFormProps) {
       // If there's an error, loginAction returns it instead of redirecting
       if (result?.error) {
         setIsFormLoading(false)
-        // Error is displayed by the form
+        toast.error(result.error)
         return
       }
       
-      // Force hard reload to ensure Server Components fetch user
-      // and AuthProvider starts token refresh timer
-      // Token expiration will be read from cookie metadata and stored by AuthProvider
-      window.location.href = formData.get('redirect') as string || '/dashboard'
+      // Success toast
+      toast.success('Login successful! Redirecting...', { duration: 1500 })
+      
+      // Short delay for toast visibility
+      setTimeout(() => {
+        // Force hard reload to ensure Server Components fetch user
+        // and AuthProvider starts token refresh timer
+        window.location.href = formData.get('redirect') as string || '/dashboard'
+      }, 1600)
     } catch (error) {
       setIsFormLoading(false)
+      toast.error('An unexpected error occurred. Please try again.')
     }
   }
 

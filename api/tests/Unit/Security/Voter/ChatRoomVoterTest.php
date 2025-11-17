@@ -25,6 +25,7 @@ final class ChatRoomVoterTest extends TestCase
     {
         $user = new User();
         $chatRoom = new ChatRoom();
+        $chatRoom->setType('direct');
 
         $participant = new ChatParticipant();
         $participant->setUser($user);
@@ -43,6 +44,7 @@ final class ChatRoomVoterTest extends TestCase
     {
         $user = new User();
         $chatRoom = new ChatRoom();
+        $chatRoom->setType('direct');
 
         $token = $this->createMock(TokenInterface::class);
         $token->method('getUser')->willReturn($user);

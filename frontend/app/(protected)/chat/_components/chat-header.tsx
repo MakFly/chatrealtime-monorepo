@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Users, Settings, LogOut } from 'lucide-react'
+import { NotificationsPopover } from '@/components/notifications-popover'
 import type { ChatRoom } from '@/types/chat'
 import { cn } from '@/lib/utils'
 
@@ -67,6 +68,7 @@ export function ChatHeader({
   onOpenSettings,
   onLeaveRoom,
 }: ChatHeaderProps) {
+
   // Empty state - no room selected
   if (!currentRoom) {
     return (
@@ -81,6 +83,8 @@ export function ChatHeader({
             </h2>
           </div>
         </div>
+        {/* Bell Icon - Always visible */}
+        <NotificationsPopover className="h-8 w-8 shrink-0 relative" />
       </header>
     )
   }
@@ -135,32 +139,38 @@ export function ChatHeader({
         </div>
       </div>
 
-      {/* Actions Menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <MoreVertical className="h-4 w-4" />
-            <span className="sr-only">Options de la conversation</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {onOpenSettings && (
-            <DropdownMenuItem onClick={onOpenSettings}>
-              <Settings className="mr-2 h-4 w-4" />
-              Paramètres
-            </DropdownMenuItem>
-          )}
-          {currentRoom.type !== 'direct' && onLeaveRoom && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" />
-                Quitter la conversation
+      {/* Bell Icon + Actions Menu */}
+      <div className="flex items-center gap-2">
+        {/* Bell Notification Icon */}
+        <NotificationsPopover className="h-8 w-8 shrink-0 relative" />
+
+        {/* Actions Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+              <MoreVertical className="h-4 w-4" />
+              <span className="sr-only">Options de la conversation</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onOpenSettings && (
+              <DropdownMenuItem onClick={onOpenSettings}>
+                <Settings className="mr-2 h-4 w-4" />
+                Paramètres
               </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            )}
+            {currentRoom.type !== 'direct' && onLeaveRoom && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onLeaveRoom} className="text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Quitter la conversation
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   )
 }

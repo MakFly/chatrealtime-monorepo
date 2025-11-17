@@ -7,8 +7,13 @@ namespace App\State;
 use ApiPlatform\Doctrine\Common\State\PersistProcessor;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
+use App\Entity\ChatParticipant;
+use App\Entity\ChatRoom;
 use App\Entity\Message;
 use App\Entity\User;
+use App\Service\V1\ChatUnreadV1Service;
+use App\Service\V1\ChatUnreadMercurePublisher;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -30,6 +35,9 @@ final class MessageProcessor implements ProcessorInterface
         private readonly Security $security,
         private readonly HubInterface $mercureHub,
         private readonly SerializerInterface $serializer,
+        private readonly ChatUnreadV1Service $unreadService,
+        private readonly ChatUnreadMercurePublisher $unreadPublisher,
+        private readonly EntityManagerInterface $entityManager,
     ) {
     }
 
@@ -49,6 +57,7 @@ final class MessageProcessor implements ProcessorInterface
         // ✅ Publish to Mercure after persistence (only on POST/create)
         if ($operation instanceof \ApiPlatform\Metadata\Post && $data instanceof Message) {
             $this->publishToMercure($data);
+            $this->handleUnreadCounts($data);
         }
 
         return $result;
@@ -74,6 +83,8 @@ final class MessageProcessor implements ProcessorInterface
 
         // For PUBLIC rooms: all authenticated users can send messages (auto-join)
         if ($chatRoom->getType() === 'public') {
+            // ✅ Auto-create participant for public rooms to enable unread tracking
+            $this->ensurePublicRoomParticipant($user, $chatRoom);
             return; // Access granted
         }
 
@@ -117,7 +128,67 @@ final class MessageProcessor implements ProcessorInterface
         );
 
         $this->mercureHub->publish($update);
-        
+
         error_log('[MessageProcessor] ✅ Mercure publish completed');
+    }
+
+    /**
+     * ✅ Handle unread counts for participants
+     */
+    private function handleUnreadCounts(Message $message): void
+    {
+        $author = $message->getAuthor();
+        $room = $message->getChatRoom();
+
+        error_log('[MessageProcessor] 📨 Handling unread counts...');
+        error_log(sprintf('[MessageProcessor] Room ID: %d, Participants: %d, Author ID: %d',
+            $room->getId(), count($room->getParticipants()), $author->getId()));
+
+        // Increment unread count for all participants except the author
+        $incrementedCount = 0;
+        foreach ($room->getParticipants() as $participant) {
+            if ($participant->getUser() !== $author) {
+                error_log(sprintf('[MessageProcessor] Incrementing unread for user ID: %d',
+                    $participant->getUser()->getId()));
+                $this->unreadService->incrementUnread($participant);
+                $incrementedCount++;
+            }
+        }
+
+        error_log(sprintf('[MessageProcessor] Incremented unread count for %d participants', $incrementedCount));
+
+        // Publish unread counts via Mercure (excluding the author)
+        error_log('[MessageProcessor] Publishing unread counts to Mercure...');
+        $this->unreadPublisher->publishUnreadCountsForRoom($room, $author);
+        error_log('[MessageProcessor] ✅ Unread processing complete');
+    }
+
+    /**
+     * ✅ Auto-create participant for public rooms to enable unread tracking and Mercure notifications
+     */
+    private function ensurePublicRoomParticipant(User $user, ChatRoom $room): void
+    {
+        if ($room->getType() !== 'public') {
+            return;
+        }
+
+        // Check if participant already exists
+        foreach ($room->getParticipants() as $participant) {
+            if ($participant->getUser() === $user) {
+                return; // Already a participant
+            }
+        }
+
+        // Create new participant
+        $participant = new ChatParticipant();
+        $participant->setUser($user);
+        $participant->setChatRoom($room);
+        $participant->setRole('member');
+
+        $this->entityManager->persist($participant);
+        $this->entityManager->flush();
+
+        error_log(sprintf('[MessageProcessor] ✅ Auto-created participant for user %d in public room %d',
+            $user->getId(), $room->getId()));
     }
 }

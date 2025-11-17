@@ -91,6 +91,9 @@ export function useMercure(options: MercureOptions) {
     }
   }, [])
 
+  // Serialize topics to prevent infinite loop (topics array reference changes)
+  const topicsKey = topics.sort().join(',')
+
   useEffect(() => {
     // Don't connect if no topics or no token
     if (topics.length === 0 || !token) return
@@ -218,7 +221,8 @@ export function useMercure(options: MercureOptions) {
         reconnectTimeoutRef.current = null
       }
     }
-  }, [hub, topics, token, reconnect, reconnectDelay])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hub, topicsKey, token, reconnect, reconnectDelay])
 
   const close = () => {
     if (eventSourceRef.current) {
@@ -270,6 +274,7 @@ export function useMercureTyped<T>(
       ? (event: MessageEvent) => {
           try {
             const data = JSON.parse(event.data) as T
+            console.log('[useMercureTyped] 📦 Parsed data:', data)
             options.onMessage!(data)
           } catch (error) {
             console.error('[Mercure] Failed to parse message:', error)

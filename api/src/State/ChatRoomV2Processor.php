@@ -9,7 +9,7 @@ use ApiPlatform\State\ProcessorInterface;
 use App\Entity\ChatParticipantV2;
 use App\Entity\ChatRoomV2;
 use App\Entity\User;
-use App\Service\ProductMockServiceInterface;
+use App\Service\V2\ProductMockServiceInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpKernel\Exception\BadRequestException;

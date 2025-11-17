@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Service\V2;
 
 use App\DTO\ProductV2;
 use App\Repository\UserRepository;

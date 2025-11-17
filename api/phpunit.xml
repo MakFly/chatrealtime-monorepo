@@ -9,6 +9,10 @@
         <env name="APP_ENV" value="test"/>
         <env name="KERNEL_CLASS" value="App\Kernel"/>
         <env name="SYMFONY_DEPRECATIONS_HELPER" value="disabled"/>
+        <env name="JWT_SECRET_KEY" value="config/jwt/private.pem"/>
+        <env name="JWT_PUBLIC_KEY" value="config/jwt/public.pem"/>
+        <env name="JWT_PASSPHRASE" value="change-me-to-random-secret"/>
+        <env name="JWT_TOKEN_TTL" value="3600"/>
     </php>
 
     <testsuites>

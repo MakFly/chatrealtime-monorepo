@@ -66,6 +66,10 @@ class ChatParticipantV2
     #[Groups(['chatParticipantV2:read'])]
     private ?\DateTimeImmutable $deletedAt = null;
 
+    #[ORM\OneToOne(targetEntity: ChatParticipantUnreadV2::class, mappedBy: 'chatParticipant', cascade: ['persist', 'remove'])]
+    #[Groups(['chatParticipantV2:read', 'chatRoomV2:read'])]
+    private ?ChatParticipantUnreadV2 $unread = null;
+
     public function __construct()
     {
         $this->joinedAt = new \DateTimeImmutable();
@@ -125,6 +129,18 @@ class ChatParticipantV2
     public function setDeletedAt(?\DateTimeImmutable $deletedAt): static
     {
         $this->deletedAt = $deletedAt;
+
+        return $this;
+    }
+
+    public function getUnread(): ?ChatParticipantUnread
+    {
+        return $this->unread;
+    }
+
+    public function setUnread(?ChatParticipantUnreadV2 $unread): static
+    {
+        $this->unread = $unread;
 
         return $this;
     }

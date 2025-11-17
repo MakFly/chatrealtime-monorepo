@@ -91,7 +91,7 @@ export function useChatMessages(options: UseChatMessagesOptions) {
     // CRITICAL: staleTime must match server QueryClient config to prevent refetch after SSR
     staleTime: 1000 * 60, // 60 seconds - matches server config
     gcTime: 1000 * 60 * 5, // 5 minutes
-    refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+    refetchOnMount: true, // ✅ Always refetch when mounting (ensures fresh data when opening room)
     refetchOnWindowFocus: false, // Don't refetch on window focus
     refetchOnReconnect: false, // Don't refetch on reconnect (Mercure handles updates)
   })

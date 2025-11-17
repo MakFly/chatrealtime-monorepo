@@ -61,6 +61,10 @@ class ChatParticipant
     #[Groups(['chatParticipant:read', 'chatRoom:read'])]
     private \DateTimeImmutable $joinedAt;
 
+    #[ORM\OneToOne(targetEntity: ChatParticipantUnreadV1::class, mappedBy: 'chatParticipant', cascade: ['persist', 'remove'])]
+    #[Groups(['chatParticipant:read', 'chatRoom:read'])]
+    private ?ChatParticipantUnreadV1 $unread = null;
+
     public function __construct()
     {
         $this->joinedAt = new \DateTimeImmutable();
@@ -115,6 +119,18 @@ class ChatParticipant
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function getUnread(): ?ChatParticipantUnreadV1
+    {
+        return $this->unread;
+    }
+
+    public function setUnread(?ChatParticipantUnreadV1 $unread): static
+    {
+        $this->unread = $unread;
+
+        return $this;
     }
 
     #[ORM\PrePersist]

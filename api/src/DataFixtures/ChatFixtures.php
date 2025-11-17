@@ -114,12 +114,18 @@ final class ChatFixtures extends Fixture
         $publicRoom->setType('public');
         $manager->persist($publicRoom);
 
-        // Add participant to public room
+        // Add participants to public room
         $participant5 = new ChatParticipant();
         $participant5->setUser($user1);
         $participant5->setChatRoom($publicRoom);
         $participant5->setRole('admin');
         $manager->persist($participant5);
+
+        $participant6 = new ChatParticipant();
+        $participant6->setUser($user2);
+        $participant6->setChatRoom($publicRoom);
+        $participant6->setRole('member');
+        $manager->persist($participant6);
 
         // Create message in public room
         $message6 = new Message();

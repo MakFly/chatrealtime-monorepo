@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Service\V1;
 
 use App\Entity\User;
 use App\Repository\ChatRoomRepository;
@@ -65,6 +65,9 @@ final class MercureJwtGenerator
         foreach ($chatRoomsV2 as $chatRoom) {
             $topics[] = sprintf('/chat-v2/room/%d', $chatRoom->getId());
         }
+
+        // Add V1 user-specific topic for unread count notifications
+        $topics[] = sprintf('/user/%d/unread', $user->getId());
 
         // Add V2 user-specific topic for new room notifications
         $topics[] = sprintf('/chat-v2/rooms/user/%d', $user->getId());

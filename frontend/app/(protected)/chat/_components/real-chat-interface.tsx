@@ -13,7 +13,9 @@ import { useChatMessages } from '@/lib/hooks/chat-v1/use-chat-messages'
 import { useChatRooms } from '@/lib/hooks/chat-v1/use-chat-rooms'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { useMercureConnectionMonitor } from '@/lib/hooks/use-mercure-connection-monitor'
+import { useUnreadNotifications } from '@/lib/hooks/chat-v1/use-unread-notifications'
 import { joinChatRoomClient } from '@/lib/api/chat-client'
+import { markChatRoomAsRead } from '@/lib/api/mark-read'
 import { ChatHeader } from './chat-header'
 import { ChatMessages } from './chat-messages'
 import { ChatInput } from './chat-input'
@@ -122,6 +124,40 @@ export function RealChatInterface({ initialMercureToken, initialRoomId, initialU
     handleContinue,
     handleQuit,
   } = useMercureConnectionMonitor({ error })
+
+  // ✅ Listen to unread count updates and show toast notifications
+  useUnreadNotifications({
+    currentRoomId,
+    enabled: true,
+  })
+
+  // ✅ Mark room as read when opening it + heartbeat every 10 seconds
+  // This ensures the backend knows the user is actively viewing the room
+  // and prevents false unread count increments
+  useEffect(() => {
+    if (!currentRoomId || currentRoomId <= 0) {
+      return
+    }
+
+    // Mark as read immediately when opening
+    markChatRoomAsRead(currentRoomId).catch((error) => {
+      console.error('[RealChatInterface] Failed to mark room as read:', error)
+    })
+
+    // Set up heartbeat to mark as read every 10 seconds while user is in the room
+    const heartbeatInterval = setInterval(() => {
+      console.log(`[RealChatInterface] 💓 Heartbeat: marking room ${currentRoomId} as read`)
+      markChatRoomAsRead(currentRoomId).catch((error) => {
+        console.error('[RealChatInterface] Failed to mark room as read (heartbeat):', error)
+      })
+    }, 10000) // 10 seconds
+
+    // Cleanup: clear interval when leaving the room or unmounting
+    return () => {
+      clearInterval(heartbeatInterval)
+      console.log(`[RealChatInterface] 🛑 Stopped heartbeat for room ${currentRoomId}`)
+    }
+  }, [currentRoomId])
 
   // Force refetch when room changes
   // React Query doesn't always refetch when a query goes from disabled to enabled
