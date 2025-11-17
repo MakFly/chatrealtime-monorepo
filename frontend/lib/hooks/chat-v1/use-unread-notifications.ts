@@ -117,8 +117,9 @@ export function useUnreadNotifications(options: UseUnreadNotificationsOptions = 
         const roomName = room?.name || `Room #${update.roomId}`
 
         // ✅ Add notification to Bell counter when showing toast with message preview
+        // Sync with backend unreadCount to ensure accuracy
         console.log('[useUnreadNotifications] 🔔 Showing notification with preview:', update.lastMessagePreview)
-        addNotification(update.roomId, update.lastMessagePreview)
+        addNotification(update.roomId, update.lastMessagePreview, update.unreadCount)
 
         toast.info(`Nouveau message dans ${roomName}`, {
           description: update.lastMessagePreview || `${update.unreadCount} message${update.unreadCount > 1 ? 's' : ''} non lu${update.unreadCount > 1 ? 's' : ''}`,

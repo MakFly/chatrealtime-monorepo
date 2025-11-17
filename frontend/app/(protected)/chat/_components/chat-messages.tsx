@@ -204,14 +204,23 @@ export function ChatMessages({
                 {/* Message Bubble */}
                 <div
                   className={cn(
-                    'rounded-2xl px-3 md:px-4 py-2 md:py-2.5 max-w-[85%] md:max-w-[70%] wrap-break-word',
+                    'rounded-2xl px-3 md:px-4 py-2 md:py-2.5 max-w-[85%] md:max-w-[70%]',
+                    'break-words',
+                    'min-w-0', // Allow shrinking below content size
+                    'overflow-hidden', // Prevent horizontal overflow
                     isCurrentUser
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-foreground'
                   )}
                 >
-                  <div className="flex items-end gap-1.5">
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap flex-1">
+                  <div className="flex items-end gap-1.5 min-w-0">
+                    <p 
+                      className="text-sm leading-relaxed whitespace-pre-wrap break-words min-w-0"
+                      style={{ 
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere' // Force break even on very long words
+                      }}
+                    >
                       {message.content}
                     </p>
                     {/* Status icon (only for current user's messages) */}

@@ -23,13 +23,17 @@ type NotificationState = {
   notifications: Map<number, NotificationData>
 
   // Add a notification for a room with optional message preview
-  addNotification: (roomId: number, messagePreview?: string) => void
+  // If unreadCount is provided, it will be used instead of incrementing
+  addNotification: (roomId: number, messagePreview?: string, unreadCount?: number) => void
 
   // Clear notifications for a specific room
   clearNotifications: (roomId: number) => void
 
   // Clear all notifications
   clearAllNotifications: () => void
+
+  // Initialize notifications from rooms with unreadCount > 0
+  initializeFromRooms: (rooms: Array<{ id: number; unreadCount: number; lastMessage?: { content: string } }>) => void
 
   // Get total notification count
   getTotalCount: () => number
@@ -43,8 +47,8 @@ export const useNotificationStore = create<NotificationState>()(
     (set, get) => ({
       notifications: new Map(),
 
-  addNotification: (roomId: number, messagePreview?: string) => {
-    console.log('[NotificationStore] 📝 addNotification called with:', { roomId, messagePreview })
+  addNotification: (roomId: number, messagePreview?: string, unreadCount?: number) => {
+    console.log('[NotificationStore] 📝 addNotification called with:', { roomId, messagePreview, unreadCount })
     set((state) => {
       const newNotifications = new Map(state.notifications)
       const current = newNotifications.get(roomId)
@@ -57,8 +61,12 @@ export const useNotificationStore = create<NotificationState>()(
           : messagePreview
         : undefined
 
+      // If unreadCount is provided, use it directly (sync with backend)
+      // Otherwise, increment the current count (new message arrived)
+      const newCount = unreadCount !== undefined ? unreadCount : currentCount + 1
+
       const newData = {
-        count: currentCount + 1,
+        count: newCount,
         lastMessagePreview: trimmedPreview || current?.lastMessagePreview,
       }
 
@@ -79,6 +87,36 @@ export const useNotificationStore = create<NotificationState>()(
 
   clearAllNotifications: () => {
     set({ notifications: new Map() })
+  },
+
+  initializeFromRooms: (rooms) => {
+    console.log('[NotificationStore] 🔄 Initializing from rooms:', rooms.length)
+    set((state) => {
+      const newNotifications = new Map(state.notifications)
+      
+      // Initialize notifications for rooms with unreadCount > 0
+      rooms.forEach((room) => {
+        if (room.unreadCount > 0) {
+          const existing = newNotifications.get(room.id)
+          // Only initialize if not already set (preserve existing notifications)
+          if (!existing) {
+            const messagePreview = room.lastMessage?.content
+              ? room.lastMessage.content.length > 50
+                ? room.lastMessage.content.substring(0, 50) + '...'
+                : room.lastMessage.content
+              : undefined
+            
+            newNotifications.set(room.id, {
+              count: room.unreadCount,
+              lastMessagePreview: messagePreview,
+            })
+            console.log('[NotificationStore] ✅ Initialized notification for room', room.id, ':', room.unreadCount)
+          }
+        }
+      })
+      
+      return { notifications: newNotifications }
+    })
   },
 
   getTotalCount: () => {

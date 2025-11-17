@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Users, Settings, LogOut } from 'lucide-react'
-import { NotificationsPopover } from '@/components/notifications-popover'
+import { NotificationsDialog } from '@/components/notifications-dialog'
 import type { ChatRoom } from '@/types/chat'
 import { cn } from '@/lib/utils'
 
@@ -84,7 +84,7 @@ export function ChatHeader({
           </div>
         </div>
         {/* Bell Icon - Always visible */}
-        <NotificationsPopover className="h-8 w-8 shrink-0 relative" />
+        <NotificationsDialog className="h-8 w-8 shrink-0 relative" />
       </header>
     )
   }
@@ -142,7 +142,7 @@ export function ChatHeader({
       {/* Bell Icon + Actions Menu */}
       <div className="flex items-center gap-2">
         {/* Bell Notification Icon */}
-        <NotificationsPopover className="h-8 w-8 shrink-0 relative" />
+        <NotificationsDialog className="h-8 w-8 shrink-0 relative" />
 
         {/* Actions Menu */}
         <DropdownMenu>
