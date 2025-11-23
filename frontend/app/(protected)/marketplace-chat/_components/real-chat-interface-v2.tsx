@@ -28,7 +28,7 @@ import { AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { User } from '@/types/auth'
 import type { Product } from '@/types/product'
-import type { ChatRoomV2, MessageV2 } from '@/lib/features/marketplace-chat'
+import type { ChatRoomV2, MessageV2 } from '@/lib/features/chat-v2'
 
 type RealChatInterfaceV2Props = {
   initialMercureToken: string | null

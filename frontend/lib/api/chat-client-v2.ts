@@ -14,7 +14,7 @@ import type {
   CreateMessageV2Request,
   AddParticipantV2Request,
   ChatUnreadCountV2,
-} from '@/types/marketplace-chat'
+} from '@/lib/features/chat-v2'
 
 // Client-side imports ONLY (no server imports)
 import {

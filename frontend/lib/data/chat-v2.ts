@@ -4,7 +4,7 @@
  */
 
 import { cookies } from 'next/headers'
-import type { ChatRoomV2, ChatRoomV2Collection, MessageV2Collection } from '@/types/marketplace-chat'
+import type { ChatRoomV2, ChatRoomV2Collection, MessageV2Collection } from '@/lib/features/chat-v2'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost'
 const API_V2_URL = `${API_BASE_URL}/api/v2`

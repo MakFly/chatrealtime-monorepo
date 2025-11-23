@@ -9,7 +9,7 @@
 import { useEffect, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMercureTyped } from './use-mercure'
-import { useMercureTokenV2 } from './marketplace-chat/use-mercure-token-v2'
+import { useMercureTokenV2 } from '@/lib/features/chat-v2/hooks/use-mercure-token-v2'
 import { useCurrentUser } from './use-current-user'
 import { toast } from 'sonner'
 import { usePathname, useRouter } from 'next/navigation'

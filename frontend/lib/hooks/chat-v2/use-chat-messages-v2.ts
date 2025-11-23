@@ -14,7 +14,7 @@ import type {
   MessageV2,
   MercureMessageV2Update,
   MessageV2Collection,
-} from '@/types/marketplace-chat'
+} from '@/lib/features/chat-v2'
 
 type UseChatMessagesV2Options = {
   roomId: number

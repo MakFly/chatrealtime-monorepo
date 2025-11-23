@@ -1,7 +1,7 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import { RealChatInterfaceV2 } from './_components/real-chat-interface-v2'
 import { ChatEmptyStateV2Skeleton } from './_components/chat-skeleton-v2'
-import { getChatRoomsV2Server, getMessagesV2Server, getProductServer } from '@/lib/data/marketplace-chat'
+import { getChatRoomsV2Server, getMessagesV2Server, getProductServer } from '@/lib/data/chat-v2'
 import { getCurrentUser } from '@/lib/auth'
 import { getQueryClient } from '@/lib/get-query-client'
 import { getMercureTokenV2 } from '@/lib/actions/mercure'

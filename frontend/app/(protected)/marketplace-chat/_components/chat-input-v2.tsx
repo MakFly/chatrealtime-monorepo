@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { sendMessageV2Client, createProductChatClient } from '@/lib/features/chat-v2/api/product-chat-client'
-import type { ChatRoomV2 } from '@/lib/features/marketplace-chat'
+import type { ChatRoomV2 } from '@/lib/features/chat-v2'
 
 type ChatInputV2Props = {
   roomId: number | null
