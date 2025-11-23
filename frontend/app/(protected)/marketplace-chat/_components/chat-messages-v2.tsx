@@ -6,7 +6,7 @@
 'use client'
 
 import type React from 'react'
-import type { MessageV2, MessageStatus } from '@/types/chat-v2'
+import type { MessageV2, MessageStatus } from '@/lib/features/chat-v2'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Check, CheckCheck, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'

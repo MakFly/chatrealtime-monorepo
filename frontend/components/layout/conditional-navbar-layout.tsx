@@ -13,7 +13,7 @@ export function ConditionalNavbarLayout({ children }: ConditionalNavbarLayoutPro
   // Hide navbar for full-screen routes: chat-v2, dashboard, and chat
   // marketplace and other routes should have navbar
   const isFullScreenRoute =
-    pathname === '/chat-v2' || pathname.startsWith('/chat-v2/') ||
+    pathname === '/marketplace-chat' || pathname.startsWith('/marketplace-chat/') ||
     pathname === '/dashboard' || pathname.startsWith('/dashboard/') ||
     pathname === '/chat' || pathname.startsWith('/chat/')
 

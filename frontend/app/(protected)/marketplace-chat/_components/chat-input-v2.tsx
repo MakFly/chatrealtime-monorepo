@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { sendMessageV2Client, createProductChatClient } from '@/lib/api/chat-client-v2'
-import type { ChatRoomV2 } from '@/types/chat-v2'
+import { sendMessageV2Client, createProductChatClient } from '@/lib/features/chat-v2/api/product-chat-client'
+import type { ChatRoomV2 } from '@/lib/features/chat-v2'
 
 type ChatInputV2Props = {
   roomId: number | null

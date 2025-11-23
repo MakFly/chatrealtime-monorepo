@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Users, Settings, LogOut } from 'lucide-react'
 import { NotificationsDialog } from '@/components/notifications-dialog'
-import type { ChatRoom } from '@/types/chat'
+import type { ChatRoom } from '@/lib/features/chat-v1'
 import { cn } from '@/lib/utils'
 
 type ChatHeaderProps = {

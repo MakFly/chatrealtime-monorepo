@@ -10,7 +10,7 @@ import { MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
-import { useTotalUnreadCount } from '@/lib/hooks/chat-v2/use-total-unread-count'
+import { useTotalUnreadCount } from '@/lib/features/chat-v2'
 import { cn } from '@/lib/utils'
 
 type MessageBadgeButtonProps = {
@@ -28,7 +28,7 @@ export function MessageBadgeButton({ className }: MessageBadgeButtonProps) {
 
   return (
     <Link
-      href="/chat-v2"
+      href="/marketplace-chat"
       className={cn(
         buttonVariants({ variant: 'ghost', size: 'icon' }),
         'relative h-11 w-11 rounded-full transition-all duration-300 hover:scale-110 hover:bg-primary/10 group',

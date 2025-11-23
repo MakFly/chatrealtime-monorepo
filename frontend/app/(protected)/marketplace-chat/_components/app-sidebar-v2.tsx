@@ -49,15 +49,15 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { useChatRoomsV2 } from '@/lib/hooks/chat-v2/use-chat-rooms-v2'
+import { useChatRoomsV2 } from '@/lib/features/chat-v2/hooks/use-chat-rooms-v2'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { useChatStoreV2 } from '@/lib/stores/use-chat-store-v2'
-import type { ChatRoomV2 } from '@/types/chat-v2'
+import type { ChatRoomV2 } from '@/lib/features/chat-v2'
 import type { Product } from '@/types/product'
 import { SettingsDialog } from '@/app/(protected)/chat/_components/settings-dialog'
 import { logoutAction } from '@/lib/actions/auth'
 import { ProductDetails } from '@/app/(protected)/marketplace/_components/product-details'
-import { leaveChatRoomV2Client } from '@/lib/api/chat-client-v2'
+import { leaveChatRoomV2Client } from '@/lib/features/chat-v2/api/product-chat-client'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   AlertDialog,
@@ -190,7 +190,7 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
       }
 
       if (userId) {
-        router.push(`/chat-v2?productId=${room.productId}&userId=${userId}`)
+        router.push(`/marketplace-chat?productId=${room.productId}&userId=${userId}`)
       }
     }
   }
@@ -209,7 +209,7 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
       setRoomToDelete(null)
 
       // If we're currently viewing this room, redirect to marketplace
-      router.push('/chat-v2')
+      router.push('/marketplace-chat')
     } catch (error) {
       console.error('Failed to delete room:', error)
       // TODO: Show error toast

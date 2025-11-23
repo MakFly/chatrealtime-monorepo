@@ -7,7 +7,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ChatRoomV2, MessageV2 } from '@/types/chat-v2'
+import type { ChatRoomV2, MessageV2 } from '@/types/marketplace-chat'
 import type { Product } from '@/types/product'
 
 type ChatV2State = {

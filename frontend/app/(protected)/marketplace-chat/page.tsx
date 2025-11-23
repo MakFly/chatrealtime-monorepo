@@ -12,10 +12,10 @@ type ChatV2PageProps = {
 
 /**
  * Chat V2 page - handles product-based conversations via search params
- * Uses ?productId=X&userId=Y instead of /chat-v2/[productId]/[userId] for instant client-side navigation
+ * Uses ?productId=X&userId=Y instead of /marketplace-chat/[productId]/[userId] for instant client-side navigation
  *
  * @example
- * /chat-v2?productId=5&userId=3 - Opens chat for product 5 with seller 3
+ * /marketplace-chat?productId=5&userId=3 - Opens chat for product 5 with seller 3
  */
 export default async function ChatV2Page({ searchParams }: ChatV2PageProps) {
   // Get productId and userId from search params

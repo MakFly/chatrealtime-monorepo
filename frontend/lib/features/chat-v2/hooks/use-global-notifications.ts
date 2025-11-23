@@ -8,12 +8,12 @@
 
 import { useEffect, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useMercureTyped } from './use-mercure'
-import { useMercureTokenV2 } from '@/lib/features/chat-v2/hooks/use-mercure-token-v2'
-import { useCurrentUser } from './use-current-user'
+import { useMercureTyped } from '@/lib/features/shared'
+import { useMercureTokenV2 } from './use-mercure-token-v2'
+import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { toast } from 'sonner'
 import { usePathname, useRouter } from 'next/navigation'
-import type { ChatRoomV2Collection, ChatRoomV2 } from '@/types/marketplace-chat'
+import type { ChatRoomV2Collection, ChatRoomV2 } from '../types'
 
 type UnreadUpdateV2 = {
   roomId: number

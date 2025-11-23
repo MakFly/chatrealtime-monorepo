@@ -6,9 +6,9 @@
 'use client'
 
 import { useEffect, useCallback } from 'react'
-import { useMercureTyped } from '@/lib/hooks/use-mercure'
+import { useMercureTyped } from '@/lib/features/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import type { ChatRoomV2Collection } from '@/types/marketplace-chat'
+import type { ChatRoomV2Collection } from '../types'
 
 type UnreadUpdateV2 = {
   roomId: number
