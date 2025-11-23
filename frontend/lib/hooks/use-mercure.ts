@@ -24,7 +24,7 @@ type MercureState = {
   reconnecting: boolean
 }
 
-const DEFAULT_HUB = process.env.NEXT_PUBLIC_MERCURE_HUB_URL || 'https://localhost/.well-known/mercure'
+const DEFAULT_HUB = process.env.NEXT_PUBLIC_MERCURE_HUB_URL || 'http://localhost/.well-known/mercure'
 
 /**
  * Hook for subscribing to Mercure topics

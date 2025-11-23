@@ -49,6 +49,12 @@ use Symfony\Component\Validator\Constraints as Assert;
             processor: LeaveRoomProcessor::class,
             name: 'leave_room'
         ),
+        new Post(
+            uriTemplate: '/v2/chat_rooms/{id}/read',
+            controller: \App\Controller\V2\ChatRoomMarkReadV2Controller::class,
+            security: "is_granted('VIEW', object)",
+            name: 'mark_read'
+        ),
     ]
 )]
 class ChatRoomV2
@@ -70,6 +76,9 @@ class ChatRoomV2
     #[Assert\Choice(choices: ['direct', 'group', 'public'])]
     #[Groups(['chatRoomV2:read', 'chatRoomV2:write'])]
     private string $type;
+
+    #[Groups(['chatRoomV2:read'])]
+    private ?int $unreadCount = null;
 
     // ** NEW FIELDS FOR V2 **
     #[ORM\Column]
@@ -135,6 +144,18 @@ class ChatRoomV2
     {
         $this->type = $type;
         $this->updatedAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+
+    public function getUnreadCount(): ?int
+    {
+        return $this->unreadCount;
+    }
+
+    public function setUnreadCount(?int $unreadCount): self
+    {
+        $this->unreadCount = $unreadCount;
 
         return $this;
     }

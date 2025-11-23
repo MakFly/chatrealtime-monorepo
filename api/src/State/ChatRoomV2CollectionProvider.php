@@ -22,6 +22,7 @@ final class ChatRoomV2CollectionProvider implements ProviderInterface
     public function __construct(
         private readonly ChatRoomV2Repository $chatRoomV2Repository,
         private readonly Security $security,
+        private readonly \App\Service\V2\ChatUnreadV2ServiceInterface $unreadService,
     ) {
     }
 
@@ -36,6 +37,23 @@ final class ChatRoomV2CollectionProvider implements ProviderInterface
         // Return chat rooms accessible by user:
         // - Where user is a participant (private/group)
         // - All public rooms (auto-join)
-        return $this->chatRoomV2Repository->findAccessibleByUser($user);
+        $rooms = $this->chatRoomV2Repository->findAccessibleByUser($user);
+
+        // Populate unread counts for each room
+        $unreadCounts = $this->unreadService->getUnreadCountsForUser($user);
+        
+        // Create map for O(1) lookup
+        $unreadMap = [];
+        foreach ($unreadCounts as $count) {
+            $unreadMap[$count['roomId']] = $count['unreadCount'];
+        }
+
+        // Assign counts to rooms (virtual property)
+        foreach ($rooms as $room) {
+            $roomId = $room->getId();
+            $room->setUnreadCount($unreadMap[$roomId] ?? 0);
+        }
+
+        return $rooms;
     }
 }

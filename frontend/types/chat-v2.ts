@@ -20,6 +20,7 @@ export type ChatRoomV2 = {
   messages: MessageV2[]
   createdAt: string
   updatedAt: string
+  unreadCount?: number
 }
 
 /**
@@ -150,4 +151,9 @@ export type MercureChatRoomV2Update = {
  */
 export type ChatRoomV2WithProduct = ChatRoomV2 & {
   product?: Product // Optional full product data
+}
+
+export type ChatUnreadCountV2 = {
+  roomId: number
+  unreadCount: number
 }

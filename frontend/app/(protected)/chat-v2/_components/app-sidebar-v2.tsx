@@ -419,11 +419,21 @@ export function AppSidebarV2({ product, ...props }: AppSidebarV2Props) {
                               <span className="text-sm font-semibold truncate">
                                 {room.productTitle}
                               </span>
-                              {room.updatedAt && (
-                                <span className="text-xs text-muted-foreground shrink-0">
-                                  {formatTime(room.updatedAt)}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2 shrink-0">
+                                {room.unreadCount > 0 && (
+                                  <Badge
+                                    variant="destructive"
+                                    className="h-5 min-w-[20px] px-1.5 text-xs font-bold"
+                                  >
+                                    {room.unreadCount > 99 ? '99+' : room.unreadCount}
+                                  </Badge>
+                                )}
+                                {room.updatedAt && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatTime(room.updatedAt)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge variant="secondary" className="h-5 px-1.5 text-xs">

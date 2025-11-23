@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { logoutAction } from '@/lib/actions/auth'
+import { MessageBadgeButton } from '@/components/layout/message-badge-button'
 
 const navItems = [
   { href: '/', label: 'Accueil', icon: Home },
@@ -119,8 +120,11 @@ export function ProtectedNavbar() {
             </nav>
 
             {/* User Section - Right */}
-            <div className="flex-shrink-0 w-32 flex justify-end">
+            <div className="flex-shrink-0 flex justify-end">
               <div className="hidden md:flex items-center gap-3">
+                {/* Message Badge Button */}
+                <MessageBadgeButton />
+
                 {isLoading ? (
                   // Loading skeleton
                   <div className="flex items-center gap-3">
@@ -195,7 +199,10 @@ export function ProtectedNavbar() {
             </div>
 
             {/* Mobile Menu - Right */}
-            <div className="flex justify-end md:hidden">
+            <div className="flex items-center gap-2 justify-end md:hidden">
+              {/* Message Badge Button (Mobile) */}
+              <MessageBadgeButton />
+
               <Sheet open={isOpen} onOpenChange={setIsOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" className="hover:bg-primary/10">

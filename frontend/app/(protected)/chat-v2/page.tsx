@@ -1,47 +1,10 @@
-import { cookies } from 'next/headers'
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import { RealChatInterfaceV2 } from './_components/real-chat-interface-v2'
 import { ChatEmptyStateV2Skeleton } from './_components/chat-skeleton-v2'
 import { getChatRoomsV2Server, getMessagesV2Server, getProductServer } from '@/lib/data/chat-v2'
 import { getCurrentUser } from '@/lib/auth'
 import { getQueryClient } from '@/lib/get-query-client'
-
-/**
- * Fetch Mercure JWT token V2 server-side
- * This eliminates the client-side fetch, reducing from 2 to 1 Mercure connection
- */
-async function getMercureTokenV2(): Promise<string | null> {
-  try {
-    const cookieStore = await cookies()
-    const accessToken = cookieStore.get('access_token')?.value
-
-    if (!accessToken) {
-      console.warn('[ChatV2Page] No access token found in cookies')
-      return null
-    }
-
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost'
-    // Use V1 endpoint - Mercure token supports both V1 and V2 topics
-    const response = await fetch(`${API_URL}/api/v1/mercure/token`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: 'no-store', // Important: fresh token at every request
-    })
-
-    if (!response.ok) {
-      console.error('[ChatV2Page] Failed to fetch Mercure token:', response.status)
-      return null
-    }
-
-    const data = await response.json()
-    return data.token || null
-  } catch (error) {
-    console.error('[ChatV2Page] Error fetching Mercure token:', error)
-    return null
-  }
-}
+import { getMercureTokenV2 } from '@/lib/actions/mercure'
 
 type ChatV2PageProps = {
   searchParams: Promise<{ productId?: string; userId?: string }>
@@ -65,12 +28,41 @@ export default async function ChatV2Page({ searchParams }: ChatV2PageProps) {
 
   // Fetch data in parallel
   // ✅ Always fetch rooms (sidebar needs them even without productId/userId)
-  const [initialMercureToken, initialRooms, initialProduct, currentUser] = await Promise.all([
-    getMercureTokenV2(),
+  let initialMercureToken: string | null = null
+  try {
+    initialMercureToken = await getMercureTokenV2()
+  } catch (error) {
+    console.error('[ChatV2Page] Failed to fetch Mercure token:', error)
+  }
+
+  const [initialRooms, initialProduct, currentUser] = await Promise.all([
     getChatRoomsV2Server(), // Always fetch - sidebar needs all rooms
     productId > 0 ? getProductServer(productId) : Promise.resolve(null),
     getCurrentUser(),
   ])
+
+  // ✅ Find existing room for this product + seller combination
+  let existingRoomId: number | null = null
+  let initialMessages = null
+
+  if (productId > 0 && userId > 0 && currentUser) {
+    const currentUserId = parseInt(currentUser.id, 10)
+    // Find room where current user and seller are both participants
+    const existingRoom = initialRooms.find((room) => {
+      if (room.productId !== productId) return false
+      // Check if both current user and seller are participants
+      const participantIds = room.participants?.map((p) => parseInt(p.user.id, 10)) || []
+      return (
+        participantIds.includes(currentUserId) && participantIds.includes(userId)
+      )
+    })
+
+    if (existingRoom) {
+      existingRoomId = existingRoom.id
+      // Preload messages for existing room
+      initialMessages = await getMessagesV2Server(existingRoom.id)
+    }
+  }
 
   // ✅ Prefill cache with server data (prevents client-side fetches)
   // CRITICAL: Hydrate ALL data used by client components to avoid duplicate fetches
@@ -97,8 +89,10 @@ export default async function ChatV2Page({ searchParams }: ChatV2PageProps) {
     queryClient.setQueryData(['product', productId], initialProduct)
   }
 
-  // Note: Messages will be fetched after room creation in RealChatInterfaceV2
-  // because we need the roomId first
+  // Hydrate messages cache if room exists
+  if (existingRoomId && initialMessages) {
+    queryClient.setQueryData(['messagesV2', existingRoomId], initialMessages)
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -109,6 +103,7 @@ export default async function ChatV2Page({ searchParams }: ChatV2PageProps) {
           initialSellerId={userId > 0 ? userId : null}
           initialUser={currentUser}
           initialProduct={initialProduct}
+          initialRoomId={existingRoomId}
         />
       </div>
     </HydrationBoundary>

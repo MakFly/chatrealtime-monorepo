@@ -11,8 +11,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMercureTyped } from '../use-mercure'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
 import { useCurrentUser } from '../use-current-user'
-import { getChatRoomsV2Client } from '@/lib/api/chat-client-v2'
-import type { ChatRoomV2, ChatRoomV2Collection } from '@/types/chat-v2'
+import { getChatRoomsV2Client, getUnreadCountsV2Client } from '@/lib/api/chat-client-v2'
+import type { ChatRoomV2, ChatRoomV2Collection, ChatUnreadCountV2 } from '@/types/chat-v2'
 
 type UseChatRoomsV2Options = {
   enabled?: boolean
@@ -65,10 +65,11 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
       return response.data
     },
     enabled,
-    // CRITICAL: Must match server QueryClient config to prevent refetch after SSR
+    // CRITICAL: Refetch on mount to get latest unread counts
+    // SSR data may be stale if messages arrived between SSR fetch and client mount
     staleTime: 1000 * 60, // 60 seconds - matches server config
     gcTime: 1000 * 60 * 5, // 5 minutes
-    refetchOnMount: false, // Don't refetch on mount (SSR data is fresh)
+    refetchOnMount: 'always', // ✅ Refetch to get latest unread counts (fixes notification badge issue)
     refetchOnWindowFocus: false, // Don't refetch on window focus
     refetchOnReconnect: false, // Don't refetch on reconnect (Mercure handles updates)
   })
@@ -83,6 +84,9 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
     if (userId) {
       topicList.push(`/chat-v2/rooms/user/${userId}`)
     }
+
+    // Global topic for public room discovery (all users receive new public room notifications)
+    topicList.push('/chat-v2/rooms')
 
     console.log('[useChatRoomsV2] 📡 Subscribing to Mercure topics:', topicList)
     return topicList
@@ -116,10 +120,8 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
           // Add new room
           console.log('[useChatRoomsV2] ➕ Adding new room to cache:', update.id)
 
-          // ✅ CRITICAL: Invalidate Mercure token cache to get updated topics
-          // When a new room is created, the JWT needs to be refreshed to include the new room's topic
-          console.log('[useChatRoomsV2] 🔄 Invalidating Mercure token cache to refresh topics')
-          queryClient.invalidateQueries({ queryKey: ['mercure', 'token', 'v2'] })
+          // ✅ NOTE: Token invalidation is handled in chat-input-v2.tsx when user creates room
+          // Don't invalidate here to prevent reconnection storms when receiving room updates
 
           return {
             ...old,

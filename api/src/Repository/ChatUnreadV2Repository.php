@@ -29,6 +29,23 @@ class ChatUnreadV2Repository extends ServiceEntityRepository implements ChatUnre
             $unread->setChatParticipant($participant);
             $this->getEntityManager()->persist($unread);
         }
+
+        // Don't increment if user VERY recently marked room as read (within 5 seconds)
+        // This prevents false unread counts when user is actively viewing the room
+        // Grace period is 5s to work with 3s heartbeat (frontend sends read every 3s)
+        // When user leaves room, they stop sending heartbeat, so notifications resume quickly (5s max)
+        $lastReadAt = $unread->getLastReadAt();
+        if ($lastReadAt) {
+            $now = new \DateTimeImmutable();
+            $secondsSinceRead = $now->getTimestamp() - $lastReadAt->getTimestamp();
+
+            if ($secondsSinceRead < 5) {
+                // Don't increment, user is actively reading (heartbeat still active)
+                error_log(sprintf('[ChatUnreadV2Repository] ⏭️  Skipping increment - user read %ds ago (grace period)', $secondsSinceRead));
+                return;
+            }
+        }
+
         $unread->setUnreadCount($unread->getUnreadCount() + 1);
         $this->getEntityManager()->flush();
     }

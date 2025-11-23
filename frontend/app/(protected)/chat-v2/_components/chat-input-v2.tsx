@@ -70,6 +70,10 @@ export function ChatInputV2({
     setError(null)
     setIsSending(true)
 
+    // Generate temporary ID for optimistic message (with random to prevent collisions)
+    // IMPORTANT: Must be declared BEFORE try-catch to use in error handler
+    const optimisticId = -Date.now() - Math.floor(Math.random() * 1000)
+
     try {
       // ✅ NEW WORKFLOW: Create room on first message if it doesn't exist
       let effectiveRoomId = roomId
@@ -96,9 +100,6 @@ export function ChatInputV2({
       if (!effectiveRoomId) {
         throw new Error('Aucune conversation sélectionnée')
       }
-
-      // Generate temporary ID for optimistic message
-      const optimisticId = -Date.now()
 
       // Add optimistic message IMMEDIATELY (before fetch)
       if (addOptimisticMessage && currentUser) {
@@ -139,9 +140,8 @@ export function ChatInputV2({
         err instanceof Error ? err.message : 'Erreur lors de l\'envoi du message'
       )
 
-      // Remove optimistic message on error
-      if (removeOptimisticMessage && addOptimisticMessage) {
-        const optimisticId = -Date.now()
+      // Remove optimistic message on error (use captured ID from above)
+      if (removeOptimisticMessage) {
         removeOptimisticMessage(optimisticId)
       }
 

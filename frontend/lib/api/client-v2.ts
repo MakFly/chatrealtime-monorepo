@@ -64,6 +64,9 @@ async function clientRequestV2<T>(
   const fetchOptions: RequestInit = {
     method,
     headers,
+    // ✅ CRITICAL FIX: Disable HTTP cache for messages to always get fresh data
+    // This ensures that when user navigates to /chat-v2, latest messages are fetched
+    cache: endpoint.includes('/messages') ? 'no-store' : 'default',
   }
 
   if (body) {

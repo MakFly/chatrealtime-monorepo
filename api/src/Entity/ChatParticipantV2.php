@@ -133,7 +133,7 @@ class ChatParticipantV2
         return $this;
     }
 
-    public function getUnread(): ?ChatParticipantUnread
+    public function getUnread(): ?ChatParticipantUnreadV2
     {
         return $this->unread;
     }

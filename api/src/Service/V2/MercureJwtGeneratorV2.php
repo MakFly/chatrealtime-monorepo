@@ -49,8 +49,14 @@ final class MercureJwtGeneratorV2
             $topics[] = sprintf('/chat-v2/room/%d', $chatRoom->getId());
         }
 
-        // Also add user-specific topic for new room notifications
+        // User-specific topic for new room notifications
         $topics[] = sprintf('/chat-v2/rooms/user/%d', $user->getId());
+
+        // User-specific topic for unread count notifications
+        $topics[] = sprintf('/chat-v2/unread/user/%d', $user->getId());
+
+        // Global topic for public room discovery (all users receive new public room notifications)
+        $topics[] = '/chat-v2/rooms';
 
         // Debug log
         error_log(sprintf('[MercureJwtGeneratorV2] 🔑 Generating token for user #%d (%s)', $user->getId(), $user->getEmail()));

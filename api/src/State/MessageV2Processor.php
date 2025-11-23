@@ -32,6 +32,8 @@ final class MessageV2Processor implements ProcessorInterface
         private readonly HubInterface $mercureHub,
         private readonly SerializerInterface $serializer,
         private readonly ChatParticipantRestoreService $restoreService,
+        private readonly \App\Service\V2\ChatUnreadV2ServiceInterface $unreadService,
+        private readonly \App\Service\V2\ChatUnreadMercurePublisherV2 $unreadPublisher,
     ) {
     }
 
@@ -61,9 +63,10 @@ final class MessageV2Processor implements ProcessorInterface
         // Delegate to default persist processor
         $result = $this->persistProcessor->process($data, $operation, $uriVariables, $context);
 
-        // Publish to Mercure after persistence (only on POST/create)
+        // Publish to Mercure and handle unread counts after persistence (only on POST/create)
         if ($operation instanceof \ApiPlatform\Metadata\Post && $data instanceof MessageV2) {
             $this->publishToMercure($data);
+            $this->handleUnreadCounts($data);
         }
 
         return $result;
@@ -134,5 +137,47 @@ final class MessageV2Processor implements ProcessorInterface
         $this->mercureHub->publish($update);
 
         error_log('[MessageV2Processor] ✅ Mercure publish completed');
+    }
+
+    /**
+     * Handle unread counts for participants (V2 version with soft-delete filtering).
+     */
+    private function handleUnreadCounts(MessageV2 $message): void
+    {
+        $author = $message->getAuthor();
+        $room = $message->getChatRoom();
+
+        error_log('[MessageV2Processor] 📨 Handling unread counts...');
+        error_log(sprintf('[MessageV2Processor] Room ID: %d, Author: %s (#%d)',
+            $room->getId(), $author->getEmail(), $author->getId()));
+        error_log(sprintf('[MessageV2Processor] Participants count: %d', $room->getParticipants()->count()));
+
+        // Increment unread count for all participants except the author and soft-deleted participants
+        $incrementedCount = 0;
+        foreach ($room->getParticipants() as $participant) {
+            // Skip author
+            if ($participant->getUser() === $author) {
+                error_log(sprintf('[MessageV2Processor] ⏭️  Skipping author: %s', $participant->getUser()->getEmail()));
+                continue;
+            }
+
+            // Skip soft-deleted participants (users who left the room)
+            if ($participant->isDeleted()) {
+                error_log(sprintf('[MessageV2Processor] ⏭️  Skipping soft-deleted participant: %s', $participant->getUser()->getEmail()));
+                continue;
+            }
+
+            error_log(sprintf('[MessageV2Processor] ✅ Incrementing unread for user: %s (#%d)',
+                $participant->getUser()->getEmail(), $participant->getUser()->getId()));
+            $this->unreadService->incrementUnread($participant);
+            $incrementedCount++;
+        }
+
+        error_log(sprintf('[MessageV2Processor] 📊 Incremented unread for %d participants', $incrementedCount));
+
+        // Publish unread count updates via Mercure (excluding author)
+        error_log('[MessageV2Processor] 📡 Publishing Mercure unread notifications...');
+        $this->unreadPublisher->publishUnreadCountsForRoom($room, $author);
+        error_log('[MessageV2Processor] ✅ Unread processing complete');
     }
 }

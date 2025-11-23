@@ -20,7 +20,8 @@ class ProductChatController extends AbstractController
 {
     public function __construct(
         private readonly ProductChatServiceInterface $productChatService,
-        private readonly SerializerInterface $serializer
+        private readonly SerializerInterface $serializer,
+        private readonly \App\Service\V2\ChatUnreadV2ServiceInterface $unreadService
     ) {
     }
 
@@ -48,6 +49,17 @@ class ProductChatController extends AbstractController
 
         $chatRoom = $this->productChatService->findOrCreateProductRoom($productId, $buyer, (int) $sellerId);
 
+        // Populate unread count (likely 0 for new room, but good for existing)
+        $counts = $this->unreadService->getUnreadCountsForUser($buyer);
+        $count = 0;
+        foreach ($counts as $c) {
+            if ($c['roomId'] === $chatRoom->getId()) {
+                $count = $c['unreadCount'];
+                break;
+            }
+        }
+        $chatRoom->setUnreadCount($count);
+
         // Serialize with chatRoomV2:read groups
         $serialized = $this->serializer->serialize($chatRoom, 'json', [
             'groups' => ['chatRoomV2:read'],
@@ -70,6 +82,18 @@ class ProductChatController extends AbstractController
         $user = $this->getUser();
 
         $chatRooms = $this->productChatService->getUserRoomsForProduct($user, $productId);
+
+        // Populate unread counts
+        $unreadCounts = $this->unreadService->getUnreadCountsForUser($user);
+        $unreadMap = [];
+        foreach ($unreadCounts as $count) {
+            $unreadMap[$count['roomId']] = $count['unreadCount'];
+        }
+
+        foreach ($chatRooms as $room) {
+            $roomId = $room->getId();
+            $room->setUnreadCount($unreadMap[$roomId] ?? 0);
+        }
 
         $serialized = $this->serializer->serialize($chatRooms, 'json', [
             'groups' => ['chatRoomV2:read'],

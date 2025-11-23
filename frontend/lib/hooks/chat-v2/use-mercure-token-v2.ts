@@ -23,7 +23,7 @@ export function useMercureTokenV2(enabled = true) {
       return token
     },
     enabled,
-    staleTime: 1000 * 60 * 60 * 5.5, // 5.5 hours (token expires in 6 hours)
+    staleTime: 1000 * 60 * 60 * 5, // 5 hours (token expires in 6 hours, refresh 1 hour before)
     gcTime: 1000 * 60 * 60 * 6, // 6 hours
     refetchOnMount: false, // Don't refetch on mount (token valid for 6 hours)
     refetchOnWindowFocus: false, // Don't refetch on window focus

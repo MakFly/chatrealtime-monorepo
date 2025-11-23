@@ -17,6 +17,9 @@ type ChatMessagesV2Props = {
   isLoading?: boolean
   currentUserId?: string | null
   messagesEndRef: React.RefObject<HTMLDivElement>
+  onLoadMore?: () => void
+  hasMoreMessages?: boolean
+  totalItems?: number
 }
 
 /**
@@ -120,6 +123,9 @@ export function ChatMessagesV2({
   isLoading = false,
   currentUserId,
   messagesEndRef,
+  onLoadMore,
+  hasMoreMessages = false,
+  totalItems,
 }: ChatMessagesV2Props) {
   // Empty state
   if (!isLoading && messages.length === 0) {
@@ -153,6 +159,19 @@ export function ChatMessagesV2({
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl px-2 md:px-4 py-4 md:py-8 space-y-4 md:space-y-6">
+        {/* Load More Button - Show at top for older messages */}
+        {hasMoreMessages && onLoadMore && messages.length > 0 && (
+          <div className="flex justify-center pb-4">
+            <button
+              onClick={onLoadMore}
+              disabled={isLoading}
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Chargement...' : `Charger plus de messages (${totalItems ? `${messages.length}/${totalItems}` : ''})`}
+            </button>
+          </div>
+        )}
+
         {messages.map((message) => {
           const author = message.author
 

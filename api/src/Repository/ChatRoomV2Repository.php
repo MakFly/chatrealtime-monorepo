@@ -58,18 +58,55 @@ class ChatRoomV2Repository extends ServiceEntityRepository
      * - Rooms where user is a participant (private/group) and hasn't soft-deleted
      * - All public rooms (auto-joined for all authenticated users)
      *
+     * This method automatically creates ChatParticipantV2 records for public rooms
+     * where the user isn't yet a participant. This enables unread count tracking
+     * and Mercure notifications for public rooms.
+     *
      * @return ChatRoomV2[]
      */
     public function findAccessibleByUser(User $user): array
     {
-        return $this->createQueryBuilder('cr')
-            ->leftJoin('cr.participants', 'p')
-            ->where('(p.user = :user AND p.deletedAt IS NULL) OR cr.type = :publicType')
+        // Fetch rooms where user is an active participant
+        $participantRooms = $this->createQueryBuilder('cr')
+            ->innerJoin('cr.participants', 'p')
+            ->where('p.user = :user')
+            ->andWhere('p.deletedAt IS NULL')
             ->setParameter('user', $user)
-            ->setParameter('publicType', 'public')
             ->orderBy('cr.updatedAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        // Fetch all public rooms
+        $publicRooms = $this->findPublicRooms();
+
+        // Auto-join public rooms: Create participant records for public rooms
+        // where user isn't yet a participant
+        $em = $this->getEntityManager();
+        $autoJoinCount = 0;
+        $existingParticipantRoomIds = array_map(fn($room) => $room->getId(), $participantRooms);
+
+        foreach ($publicRooms as $publicRoom) {
+            if (!in_array($publicRoom->getId(), $existingParticipantRoomIds, true)) {
+                $participant = new \App\Entity\ChatParticipantV2();
+                $participant->setUser($user);
+                $participant->setChatRoom($publicRoom);
+                $participant->setRole('member');
+                $em->persist($participant);
+                $autoJoinCount++;
+
+                // Add to result list
+                $participantRooms[] = $publicRoom;
+            }
+        }
+
+        if ($autoJoinCount > 0) {
+            $em->flush();
+        }
+
+        // Sort by updatedAt DESC
+        usort($participantRooms, fn($a, $b) => $b->getUpdatedAt() <=> $a->getUpdatedAt());
+
+        return $participantRooms;
     }
 
     /**
@@ -91,7 +128,7 @@ class ChatRoomV2Repository extends ServiceEntityRepository
     /**
      * Find existing chat room for a product between specific users.
      * Prevents duplicate rooms for same product + participants.
-     * Excludes rooms where any participant has soft-deleted.
+     * Ignores soft-delete status to allow restoring deleted conversations.
      *
      * @param int $productId
      * @param array<int> $userIds Array of user IDs (typically buyer + seller)
@@ -102,7 +139,6 @@ class ChatRoomV2Repository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('cr')
             ->innerJoin('cr.participants', 'p')
             ->where('cr.productId = :productId')
-            ->andWhere('p.deletedAt IS NULL')
             ->setParameter('productId', $productId)
             ->groupBy('cr.id')
             ->having('COUNT(DISTINCT p.user) = :userCount');
@@ -114,7 +150,6 @@ class ChatRoomV2Repository extends ServiceEntityRepository
                 SELECT 1 FROM App\Entity\ChatParticipantV2 ' . $alias . '
                 WHERE ' . $alias . '.chatRoom = cr
                 AND ' . $alias . '.user = :user' . $index . '
-                AND ' . $alias . '.deletedAt IS NULL
             )')
             ->setParameter('user' . $index, $userId);
         }

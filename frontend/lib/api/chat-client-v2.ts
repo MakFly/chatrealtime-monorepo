@@ -13,6 +13,7 @@ import type {
   UpdateChatRoomV2Request,
   CreateMessageV2Request,
   AddParticipantV2Request,
+  ChatUnreadCountV2,
 } from '@/types/chat-v2'
 
 // Client-side imports ONLY (no server imports)
@@ -33,6 +34,7 @@ const ENDPOINTS = {
   PARTICIPANTS: '/v2/chat_participants',
   MERCURE_TOKEN: '/v2/mercure/token',
   PRODUCT_CHAT: '/v2/products', // Base for /products/{id}/chat
+  CHAT_UNREAD: '/v2/chat/unread',
 } as const
 
 /**
@@ -99,11 +101,29 @@ export async function deleteChatRoomV2Client(roomId: number) {
 
 /**
  * Get messages for a chat room v2 (client-side)
+ * 
+ * @param roomId - The chat room ID
+ * @param options - Optional pagination options
+ * @param options.itemsPerPage - Number of messages to fetch (default: 10000 = all messages)
+ * @param options.page - Page number for pagination (default: 1)
  */
-export async function getMessagesV2Client(roomId: number) {
+export async function getMessagesV2Client(
+  roomId: number,
+  options?: { itemsPerPage?: number; page?: number }
+) {
   const params = new URLSearchParams()
   // API Platform SearchFilter expects IRI format
   params.append('chatRoom', `/api/v2/chat_rooms/${roomId}`)
+  
+  // ✅ Load all messages by default (or specify a limit)
+  // Using a very high number effectively loads all messages
+  // API Platform maximum_items_per_page is set to 10000
+  const itemsPerPage = options?.itemsPerPage ?? 10000
+  params.append('itemsPerPage', itemsPerPage.toString())
+  
+  if (options?.page) {
+    params.append('page', options.page.toString())
+  }
 
   return clientGetV2<MessageV2Collection>(
     `${ENDPOINTS.MESSAGES}?${params.toString()}`
@@ -159,4 +179,18 @@ export async function joinChatRoomV2Client(roomId: number) {
  */
 export async function leaveChatRoomV2Client(roomId: number) {
   return clientPostV2<ChatRoomV2>(`${ENDPOINTS.CHAT_ROOMS}/${roomId}/leave`, {})
+}
+
+/**
+ * Get unread counts for v2 chat rooms (client-side)
+ */
+export async function getUnreadCountsV2Client() {
+  return clientGetV2<ChatUnreadCountV2[]>(ENDPOINTS.CHAT_UNREAD)
+}
+
+/**
+ * Mark a chat room as read v2 (client-side)
+ */
+export async function markChatRoomReadV2Client(roomId: number) {
+  return clientPostV2(`${ENDPOINTS.CHAT_ROOMS}/${roomId}/read`, {})
 }

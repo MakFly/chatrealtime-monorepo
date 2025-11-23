@@ -68,6 +68,23 @@ final class ProductChatService implements ProductChatServiceInterface
         );
 
         if ($existingRoom !== null) {
+            // Restore participation if user previously left (soft-deleted)
+            $restored = false;
+            foreach ($existingRoom->getParticipants() as $participant) {
+                $participantUserId = $participant->getUser()->getId();
+                if (
+                    ($participantUserId === $buyer->getId() || $participantUserId === $seller->getId()) &&
+                    $participant->getDeletedAt() !== null
+                ) {
+                    $participant->setDeletedAt(null);
+                    $restored = true;
+                }
+            }
+
+            if ($restored) {
+                $this->entityManager->flush();
+            }
+
             return $existingRoom;
         }
 

@@ -70,6 +70,11 @@ services:
         arguments:
             $mercureJwtSecret: '%env(MERCURE_JWT_SECRET)%'
 
+    # Mercure Unread Publisher V2
+    App\Service\V2\ChatUnreadMercurePublisherV2:
+        arguments:
+            $hub: '@mercure.hub.default'
+
     # Product Mock Service Interface binding
     App\Service\V2\ProductMockServiceInterface:
         class: App\Service\V2\ProductMockService
@@ -80,6 +85,10 @@ services:
 
     # Doctrine Extensions for API Platform
     App\Doctrine\Extension\MessageAccessExtension:
+        tags:
+            - { name: api_platform.doctrine.orm.query_extension.collection }
+
+    App\Doctrine\Extension\MessageV2AccessExtension:
         tags:
             - { name: api_platform.doctrine.orm.query_extension.collection }
 

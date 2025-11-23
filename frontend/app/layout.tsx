@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AuthProvider } from "@/lib/providers/auth-provider";
+import { GlobalNotificationProvider } from "@/lib/providers/global-notification-provider";
 import { getCurrentUser } from "@/lib/auth";
 import { AuthDebugButton } from "@/components/auth-debug-button";
 
@@ -45,8 +46,10 @@ export default async function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
           <AuthProvider initialUser={user} initialTokenExpiresAt={normalizedTokenExpiresAt}>
-            {children}
-            {/* <AuthDebugButton /> */}
+            <GlobalNotificationProvider>
+              {children}
+              {/* <AuthDebugButton /> */}
+            </GlobalNotificationProvider>
           </AuthProvider>
         </Providers>
       </body>

@@ -7,6 +7,9 @@ api_platform:
             vary: ['Content-Type', 'Authorization', 'Origin']
         normalization_context:
             enable_max_depth: true # ✅ Enable MaxDepth support for nested relations
+        pagination:
+            items_per_page: 30 # Default pagination
+            maximum_items_per_page: 10000 # ✅ Allow very high limit for messages (no practical limit)
     path_segment_name_generator: api_platform.path_segment_name_generator.underscore
     formats:
         jsonld: ['application/ld+json']
