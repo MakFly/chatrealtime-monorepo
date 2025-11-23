@@ -11,7 +11,7 @@ import { Paperclip, ArrowUp, X, Loader2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import type { CreateMessageRequest, Message } from '@/types/chat'
+import type { CreateMessageRequest, Message } from '@/lib/features/chat-v1'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 type ChatInputProps = {

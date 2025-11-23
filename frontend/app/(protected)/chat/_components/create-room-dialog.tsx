@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { createChatRoomClient } from '@/lib/api/chat-client'
+import { createChatRoomClient } from '@/lib/features/chat-v1/api/chat-client'
 
 const createRoomSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(255, 'Le nom est trop long'),

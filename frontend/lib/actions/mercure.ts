@@ -54,7 +54,7 @@ export async function getMercureToken(): Promise<string> {
 
 /**
  * Get Mercure JWT token for real-time subscriptions (V2 - marketplace chat)
- * Fetches from V2 endpoint which generates tokens with /chat-v2 topics
+ * Fetches from V2 endpoint which generates tokens with /marketplace-chat topics
  * Server action that fetches token from Symfony backend
  */
 export async function getMercureTokenV2(): Promise<string> {

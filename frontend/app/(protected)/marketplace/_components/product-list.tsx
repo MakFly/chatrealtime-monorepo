@@ -16,7 +16,7 @@ export function ProductList() {
 
   const handleContactClick = (productId: number, sellerId: number) => {
     // Redirect to chat-v2 page with search params
-    router.push(`/chat-v2?productId=${productId}&userId=${sellerId}`)
+    router.push(`/marketplace-chat?productId=${productId}&userId=${sellerId}`)
   }
 
   // Wait for both user and products to load to avoid button flash

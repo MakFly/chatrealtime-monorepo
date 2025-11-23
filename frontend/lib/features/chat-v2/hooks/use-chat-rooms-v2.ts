@@ -8,11 +8,11 @@
 
 import { useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMercureTyped } from '../use-mercure'
+import { useMercureTyped } from '@/lib/features/shared'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
-import { useCurrentUser } from '../use-current-user'
-import { getChatRoomsV2Client, getUnreadCountsV2Client } from '@/lib/api/chat-client-v2'
-import type { ChatRoomV2, ChatRoomV2Collection, ChatUnreadCountV2 } from '@/types/marketplace-chat'
+import { useCurrentUser } from '@/lib/hooks/use-current-user'
+import { getChatRoomsV2Client, getUnreadCountsV2Client } from '../api/product-chat-client'
+import type { ChatRoomV2, ChatRoomV2Collection, ChatUnreadCountV2 } from '../types'
 
 type UseChatRoomsV2Options = {
   enabled?: boolean

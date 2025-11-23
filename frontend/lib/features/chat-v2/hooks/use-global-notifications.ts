@@ -13,7 +13,7 @@ import { useMercureTokenV2 } from './marketplace-chat/use-mercure-token-v2'
 import { useCurrentUser } from './use-current-user'
 import { toast } from 'sonner'
 import { usePathname, useRouter } from 'next/navigation'
-import type { ChatRoomV2Collection, ChatRoomV2 } from '@/types/marketplace-chat'
+import type { ChatRoomV2Collection, ChatRoomV2 } from '../types'
 
 type UnreadUpdateV2 = {
   roomId: number

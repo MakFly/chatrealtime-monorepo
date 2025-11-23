@@ -14,7 +14,7 @@ import type {
   CreateMessageV2Request,
   AddParticipantV2Request,
   ChatUnreadCountV2,
-} from '@/types/marketplace-chat'
+} from '../types'
 
 // Client-side imports ONLY (no server imports)
 import {
@@ -22,7 +22,7 @@ import {
   clientPostV2,
   clientPatchV2,
   clientDeleteV2,
-} from './client-v2'
+} from '@/lib/api/client-v2'
 
 /**
  * API Endpoints for V2

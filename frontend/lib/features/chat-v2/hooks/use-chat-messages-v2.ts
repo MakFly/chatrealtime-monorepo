@@ -7,14 +7,14 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMercureTyped } from '../use-mercure'
+import { useMercureTyped } from '@/lib/features/shared'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
-import { getMessagesV2Client } from '@/lib/api/chat-client-v2'
+import { getMessagesV2Client } from '../api/product-chat-client'
 import type {
   MessageV2,
   MercureMessageV2Update,
   MessageV2Collection,
-} from '@/types/marketplace-chat'
+} from '../types'
 
 type UseChatMessagesV2Options = {
   roomId: number

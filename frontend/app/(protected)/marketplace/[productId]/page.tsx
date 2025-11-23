@@ -24,7 +24,7 @@ export default function ProductDetailPage({
 
   const handleContactClick = () => {
     if (product?.seller) {
-      router.push(`/chat-v2?productId=${productIdNum}&userId=${product.seller.id}`)
+      router.push(`/marketplace-chat?productId=${productIdNum}&userId=${product.seller.id}`)
     }
   }
 
