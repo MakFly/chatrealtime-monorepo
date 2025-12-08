@@ -28,18 +28,18 @@ export async function POST() {
     const accessTokenExpiresAt = Math.floor(Date.now() / 1000) + data.expires_in
 
     cookieStore.set('access_token', data.access_token, {
-      httpOnly: false,
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: data.expires_in,
       path: '/',
       expires: new Date(accessTokenExpiresAt * 1000),
     })
 
     cookieStore.set('access_token_expires_at', accessTokenExpiresAt.toString(), {
-      httpOnly: false,
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: data.expires_in,
       path: '/',
       expires: new Date(accessTokenExpiresAt * 1000),

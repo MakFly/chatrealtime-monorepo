@@ -81,18 +81,18 @@ export async function POST(request: NextRequest) {
     const accessTokenExpiresAt = Math.floor(Date.now() / 1000) + authData.expires_in
 
     cookieStore.set('access_token', authData.access_token, {
-      httpOnly: false,
+      httpOnly: true,
       secure: false, // Dev only, always false
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: authData.expires_in,
       path: '/',
       expires: new Date(accessTokenExpiresAt * 1000),
     })
 
     cookieStore.set('access_token_expires_at', accessTokenExpiresAt.toString(), {
-      httpOnly: false,
+      httpOnly: true,
       secure: false, // Dev only, always false
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: authData.expires_in,
       path: '/',
       expires: new Date(accessTokenExpiresAt * 1000),

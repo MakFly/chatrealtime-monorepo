@@ -221,6 +221,7 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
     onMessage: handleMercureMessage,
     reconnect: true,
     reconnectDelay: 3000,
+    enabled: roomId > 0 && !!mercureToken,
   })
 
   // ✅ NEW: Cleanup optimistic messages when real messages arrive via API

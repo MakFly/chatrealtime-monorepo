@@ -7,6 +7,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChatStoreV2 } from '@/lib/stores/use-chat-store-v2'
@@ -26,6 +27,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import type { User } from '@/types/auth'
 import type { Product } from '@/types/product'
 import type { ChatRoomV2, MessageV2 } from '@/lib/features/chat-v2'
@@ -361,6 +363,15 @@ export function RealChatInterfaceV2({
 
     markAsRead()
 
+    // Fallback when tab is throttled: re-mark on visibility/focus
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        markAsRead()
+      }
+    }
+    window.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleVisibility)
+
     // Set up heartbeat to maintain "read" status (every 3 seconds)
     // This prevents false unread counts when user is actively viewing
     const heartbeatInterval = setInterval(() => {
@@ -368,6 +379,8 @@ export function RealChatInterfaceV2({
     }, V2_HEARTBEAT_INTERVAL_MS) // Must stay < backend grace window (5s)
 
     return () => {
+      window.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleVisibility)
       clearInterval(heartbeatInterval)
     }
   }, [roomId, queryClient])
@@ -597,26 +610,21 @@ export function RealChatInterfaceV2({
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center bg-background">
-            <div className="text-center space-y-4">
-              {effectiveProduct ? (
-                <>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-semibold">
-                      {effectiveProduct.title}
-                    </h2>
-                    <p className="text-lg text-muted-foreground">
-                      {effectiveProduct.price} €
-                    </p>
-                  </div>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Chargement de la conversation pour ce produit...
-                  </p>
-                </>
-              ) : (
-                <h2 className="text-2xl font-medium text-muted-foreground">
-                  Chargement de la conversation...
-                </h2>
-              )}
+            <div className="text-center space-y-4 max-w-lg px-6">
+              <h2 className="text-2xl font-semibold text-foreground">
+                Messagerie marketplace
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Choisissez une conversation dans la colonne de gauche ou ouvrez un produit pour démarrer un échange avec un vendeur.
+              </p>
+              <div className="flex justify-center gap-3">
+                <Button asChild variant="secondary">
+                  <Link href="/marketplace">Retour à la marketplace</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/marketplace-chat">Rafraîchir</Link>
+                </Button>
+              </div>
             </div>
           </div>
         )}

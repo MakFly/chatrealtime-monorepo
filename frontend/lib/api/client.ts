@@ -5,8 +5,7 @@
 
 'use client'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost'
-const API_URL = `${API_BASE_URL}/api/v1`
+const PROXY_BASE = '/api/proxy'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -22,23 +21,6 @@ type ApiResponse<T> = {
 
 type RequestOptions = {
   headers?: HeadersInit
-  token?: string | null
-}
-
-/**
- * Get access token from cookies (client-side)
- */
-function getAccessToken(): string | null {
-  if (typeof document === 'undefined') return null
-
-  const cookies = document.cookie.split(';')
-  const tokenCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith('access_token=')
-  )
-
-  if (!tokenCookie) return null
-
-  return tokenCookie.split('=')[1]
 }
 
 /**
@@ -50,16 +32,13 @@ async function clientRequest<T>(
   body?: unknown,
   options?: RequestOptions
 ): Promise<ApiResponse<T>> {
-  // Use token from options first, fallback to cookie token
-  const token = options?.token ?? getAccessToken()
-
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
     ...options?.headers,
   }
 
-  const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`
+  const sanitizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  const url = `${PROXY_BASE}${sanitizedEndpoint}`
 
   const fetchOptions: RequestInit = {
     method,

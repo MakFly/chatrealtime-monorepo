@@ -72,9 +72,14 @@ export function ChatHeaderV2({
                 </p>
               </>
             ) : (
-              <h2 className="text-sm font-semibold text-muted-foreground">
-                Chargement...
-              </h2>
+              <>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Messagerie marketplace
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Sélectionnez une conversation ou un produit pour démarrer.
+                </p>
+              </>
             )}
           </div>
         </div>

@@ -165,6 +165,7 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
     onMessage: handleMercureRoom,
     reconnect: true,
     reconnectDelay: 3000,
+    enabled: !!mercureToken,
   })
 
   // ✅ Log only when data changes (not on every render)

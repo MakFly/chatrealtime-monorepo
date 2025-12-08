@@ -17,12 +17,10 @@ class MessagePostV2Subscriber implements EventSubscriber
         private readonly ChatUnreadV2ServiceInterface $unreadService,
         private readonly ChatUnreadMercurePublisherV2 $mercurePublisher
     ) {
-        error_log('[MessagePostV2Subscriber] 🏗️ Constructor called - Subscriber instantiated');
     }
 
     public function getSubscribedEvents(): array
     {
-        error_log('[MessagePostV2Subscriber] 📋 getSubscribedEvents() called');
         return [
             Events::postPersist => 'postPersist',
         ];

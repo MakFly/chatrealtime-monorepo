@@ -22,18 +22,18 @@ function setSessionCookies(
   const accessExpiryDate = new Date(accessTokenExpiresAt * 1000)
 
   cookieStore.set('access_token', accessToken, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: expiresIn,
     path: '/',
     expires: accessExpiryDate,
   })
 
   cookieStore.set('access_token_expires_at', accessTokenExpiresAt.toString(), {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: expiresIn,
     path: '/',
     expires: accessExpiryDate,

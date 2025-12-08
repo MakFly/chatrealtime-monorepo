@@ -155,9 +155,22 @@ export function RealChatInterface({ initialMercureToken, initialRoomId, initialU
       })
     }, HEARTBEAT_INTERVAL_MS) // Must stay < backend grace window (15s)
 
+    // Fallback when tab is throttled: re-mark on visibility/focus
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        markChatRoomAsRead(currentRoomId).catch((error) => {
+          console.error('[RealChatInterface] Failed to mark room as read (visibility):', error)
+        })
+      }
+    }
+    window.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleVisibility)
+
     // Cleanup: clear interval when leaving the room or unmounting
     return () => {
       clearInterval(heartbeatInterval)
+      window.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleVisibility)
       console.log(`[RealChatInterface] 🛑 Stopped heartbeat for room ${currentRoomId}`)
     }
   }, [currentRoomId])
