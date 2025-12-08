@@ -24,6 +24,9 @@ import { MercureConnectionLostDialog } from './mercure-connection-lost-dialog'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import type { User } from '@/types/auth'
 
+// Backend grace window is 15s (ChatUnreadV1Repository); keep heartbeat comfortably below
+const HEARTBEAT_INTERVAL_MS = 10000
+
 type RealChatInterfaceProps = {
   initialMercureToken: string | null
   initialRoomId: number | null
@@ -150,7 +153,7 @@ export function RealChatInterface({ initialMercureToken, initialRoomId, initialU
       markChatRoomAsRead(currentRoomId).catch((error) => {
         console.error('[RealChatInterface] Failed to mark room as read (heartbeat):', error)
       })
-    }, 10000) // 10 seconds
+    }, HEARTBEAT_INTERVAL_MS) // Must stay < backend grace window (15s)
 
     // Cleanup: clear interval when leaving the room or unmounting
     return () => {

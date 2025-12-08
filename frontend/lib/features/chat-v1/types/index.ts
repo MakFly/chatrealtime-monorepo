@@ -3,7 +3,7 @@
  * Matches Symfony API Platform entities
  */
 
-import type { User } from './auth'
+import type { User } from '@/types/auth'
 
 /**
  * ChatRoom entity type

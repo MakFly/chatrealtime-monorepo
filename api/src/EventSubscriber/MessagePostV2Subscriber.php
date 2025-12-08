@@ -35,38 +35,7 @@ class MessagePostV2Subscriber implements EventSubscriber
             return;
         }
 
-        error_log('[MessagePostV2Subscriber] 📨 New message created, processing unread counts...');
-
-        $author = $message->getAuthor();
-        $room = $message->getChatRoom();
-
-        error_log(sprintf('[MessagePostV2Subscriber] Room ID: %d, Author: %s (#%d)', $room->getId(), $author->getEmail(), $author->getId()));
-        error_log(sprintf('[MessagePostV2Subscriber] Participants count: %d', $room->getParticipants()->count()));
-
-        $incrementedCount = 0;
-        foreach ($room->getParticipants() as $participant) {
-            // Skip author
-            if ($participant->getUser() === $author) {
-                error_log(sprintf('[MessagePostV2Subscriber] ⏭️  Skipping author: %s', $participant->getUser()->getEmail()));
-                continue;
-            }
-
-            // Skip soft-deleted participants (users who left the room)
-            if ($participant->isDeleted()) {
-                error_log(sprintf('[MessagePostV2Subscriber] ⏭️  Skipping soft-deleted participant: %s', $participant->getUser()->getEmail()));
-                continue;
-            }
-
-            error_log(sprintf('[MessagePostV2Subscriber] ✅ Incrementing unread for user: %s (#%d)', $participant->getUser()->getEmail(), $participant->getUser()->getId()));
-            $this->unreadService->incrementUnread($participant);
-            $incrementedCount++;
-        }
-
-        error_log(sprintf('[MessagePostV2Subscriber] 📊 Incremented unread for %d participants', $incrementedCount));
-
-        // Publish unread count updates via Mercure (excluding author)
-        error_log('[MessagePostV2Subscriber] 📡 Publishing Mercure notifications...');
-        $this->mercurePublisher->publishUnreadCountsForRoom($room, $author);
-        error_log('[MessagePostV2Subscriber] ✅ MessagePostV2Subscriber completed');
+        // Unread/publish logic is already handled in MessageV2Processor; avoid double-processing.
+        return;
     }
 }

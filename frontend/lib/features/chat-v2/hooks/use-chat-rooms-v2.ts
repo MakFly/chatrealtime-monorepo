@@ -12,7 +12,7 @@ import { useMercureTyped } from '@/lib/features/shared'
 import { useMercureTokenV2 } from './use-mercure-token-v2'
 import { useCurrentUser } from '@/lib/hooks/use-current-user'
 import { getChatRoomsV2Client, getUnreadCountsV2Client } from '../api/product-chat-client'
-import type { ChatRoomV2, ChatRoomV2Collection, ChatUnreadCountV2 } from '../types'
+import type { ChatRoomV2, ChatRoomV2Collection } from '../types'
 
 type UseChatRoomsV2Options = {
   enabled?: boolean
@@ -57,12 +57,36 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
     queryKey: ['chatRoomsV2'],
     queryFn: async () => {
       console.log('[useChatRoomsV2] 🔍 Fetching chat rooms V2 from API...')
-      const response = await getChatRoomsV2Client()
-      console.log('[useChatRoomsV2] 📦 Raw API response:', response)
-      console.log('[useChatRoomsV2] 📊 response.data:', response.data)
-      console.log('[useChatRoomsV2] ✅ Fetched from API:', response.data?.member?.length, 'rooms')
+      const roomsResponse = await getChatRoomsV2Client()
+      console.log('[useChatRoomsV2] 📦 Raw API response:', roomsResponse)
+      console.log('[useChatRoomsV2] 📊 response.data:', roomsResponse.data)
+      console.log('[useChatRoomsV2] ✅ Fetched from API:', roomsResponse.data?.member?.length, 'rooms')
+
+      // Fetch unread counts and merge into room list to align with backend
+      try {
+        const unreadResponse = await getUnreadCountsV2Client()
+        const unreadMap = new Map(
+          (unreadResponse.data || []).map((u) => [u.roomId, u.unreadCount])
+        )
+
+        const mergedRooms = roomsResponse.data?.member?.map((room) => {
+          const unreadCount = unreadMap.get(room.id)
+          return unreadCount !== undefined ? { ...room, unreadCount } : room
+        })
+
+        if (mergedRooms) {
+          console.log('[useChatRoomsV2] 🔄 Applied unread counts from /v2/chat/unread')
+          return {
+            ...roomsResponse.data,
+            member: mergedRooms,
+          }
+        }
+      } catch (error) {
+        console.warn('[useChatRoomsV2] ⚠️ Could not fetch unread counts, continuing with rooms only', error)
+      }
+
       // Return response.data instead of response (ApiResponse wrapper)
-      return response.data
+      return roomsResponse.data
     },
     enabled,
     // CRITICAL: Refetch on mount to get latest unread counts
@@ -82,11 +106,11 @@ export function useChatRoomsV2(options: UseChatRoomsV2Options = {}) {
 
     // User-specific topic for V2 chat rooms
     if (userId) {
-      topicList.push(`/marketplace-chat/rooms/user/${userId}`)
+      topicList.push(`/chat-v2/rooms/user/${userId}`)
     }
 
     // Global topic for public room discovery (all users receive new public room notifications)
-    topicList.push('/marketplace-chat/rooms')
+    topicList.push('/chat-v2/rooms')
 
     console.log('[useChatRoomsV2] 📡 Subscribing to Mercure topics:', topicList)
     return topicList

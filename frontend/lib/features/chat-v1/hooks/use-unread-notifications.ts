@@ -69,8 +69,8 @@ export function useUnreadNotifications(options: UseUnreadNotificationsOptions = 
       console.log('[useUnreadNotifications] 📥 Received unread update:', update)
 
       // Always update the unreadCount in the chat rooms cache first
-      queryClient.setQueryData(
-        ['chatRooms'],
+      queryClient.setQueriesData(
+        { queryKey: ['chatRooms'] },
         (old: { member: ChatRoom[] } | undefined) => {
           if (!old?.member) return old
 

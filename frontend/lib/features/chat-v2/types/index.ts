@@ -3,7 +3,7 @@
  * Matches Symfony API Platform V2 entities
  */
 
-import type { User } from './auth'
+import type { User } from '@/types/auth'
 import type { Product } from './product'
 
 /**

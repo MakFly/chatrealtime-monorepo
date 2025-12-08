@@ -33,31 +33,7 @@ class MessagePostV1Subscriber implements EventSubscriber
             return;
         }
 
-        error_log('[MessagePostV1Subscriber] 📨 New message detected, processing unread counts...');
-
-        $author = $message->getAuthor();
-        $room = $message->getChatRoom();
-        $participantCount = count($room->getParticipants());
-
-        error_log(sprintf('[MessagePostV1Subscriber] Room ID: %d, Participants: %d, Author ID: %d',
-            $room->getId(), $participantCount, $author->getId()));
-
-        // Increment unread count for all participants except the author
-        $incrementedCount = 0;
-        foreach ($room->getParticipants() as $participant) {
-            if ($participant->getUser() !== $author) {
-                error_log(sprintf('[MessagePostV1Subscriber] Incrementing unread for user ID: %d',
-                    $participant->getUser()->getId()));
-                $this->unreadService->incrementUnread($participant);
-                $incrementedCount++;
-            }
-        }
-
-        error_log(sprintf('[MessagePostV1Subscriber] Incremented unread count for %d participants', $incrementedCount));
-
-        // Publish unread counts via Mercure (excluding the author)
-        error_log('[MessagePostV1Subscriber] Publishing to Mercure...');
-        $this->mercurePublisher->publishUnreadCountsForRoom($room, $author);
-        error_log('[MessagePostV1Subscriber] ✅ Processing complete');
+        // Unread/publish logic is handled in MessageProcessor; avoid double-processing.
+        return;
     }
 }

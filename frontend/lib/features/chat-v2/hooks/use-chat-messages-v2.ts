@@ -125,7 +125,7 @@ export function useChatMessagesV2(options: UseChatMessagesV2Options) {
   const messages = messagesData?.member || []
 
   // Memoize topics to prevent infinite loop
-  const topics = useMemo(() => [`/marketplace-chat/room/${roomId}`], [roomId])
+  const topics = useMemo(() => [`/chat-v2/room/${roomId}`], [roomId])
 
   // Memoize onMessage callback to prevent infinite loop
   const handleMercureMessage = useCallback(

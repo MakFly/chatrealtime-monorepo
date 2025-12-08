@@ -6,6 +6,7 @@
 
 // Hooks
 export { useMercure } from './hooks/use-mercure'
+export { useMercureTyped } from './hooks/use-mercure'
 export { useMercureConnectionMonitor } from './hooks/use-mercure-connection-monitor'
 
 // Types

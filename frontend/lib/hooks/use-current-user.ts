@@ -21,9 +21,17 @@ import type { User } from '@/types/auth'
 export function useCurrentUser() {
   return useQuery({
     queryKey: ['user', 'me'],
-    queryFn: async () => {
+    queryFn: async (): Promise<User | null> => {
       console.log('[useCurrentUser] 🔍 Fetching user from API...')
-      const response = await fetch('/api/users/me')
+      const response = await fetch('/api/users/me', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+
+      if (response.status === 401) {
+        console.warn('[useCurrentUser] ⚠️ Unauthorized, returning null')
+        return null
+      }
 
       if (!response.ok) {
         console.error('[useCurrentUser] ❌ Failed:', response.status, response.statusText)

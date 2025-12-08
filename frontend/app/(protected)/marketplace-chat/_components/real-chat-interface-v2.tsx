@@ -30,6 +30,10 @@ import type { User } from '@/types/auth'
 import type { Product } from '@/types/product'
 import type { ChatRoomV2, MessageV2 } from '@/lib/features/chat-v2'
 
+// Backend grace window for unread increment is 5s (ChatUnreadV2Repository);
+// keep heartbeat safely below this.
+const V2_HEARTBEAT_INTERVAL_MS = 3000
+
 type RealChatInterfaceV2Props = {
   initialMercureToken: string | null
   initialProductId: number | null
@@ -338,6 +342,18 @@ export function RealChatInterfaceV2({
             }
           }
         )
+
+        // Keep unread counts query in sync with backend after mark-read
+        queryClient.setQueryData(
+          ['chatUnreadV2'],
+          (old: Array<{ roomId: number; unreadCount: number }> | undefined) => {
+            if (!old) return old
+            return old.map((item) =>
+              item.roomId === roomId ? { ...item, unreadCount: 0 } : item
+            )
+          }
+        )
+        queryClient.invalidateQueries({ queryKey: ['chatUnreadV2'] })
       } catch (error) {
         console.error('[RealChatInterfaceV2] ❌ Failed to mark room as read:', error)
       }
@@ -349,7 +365,7 @@ export function RealChatInterfaceV2({
     // This prevents false unread counts when user is actively viewing
     const heartbeatInterval = setInterval(() => {
       markAsRead()
-    }, 3000) // 3 seconds
+    }, V2_HEARTBEAT_INTERVAL_MS) // Must stay < backend grace window (5s)
 
     return () => {
       clearInterval(heartbeatInterval)

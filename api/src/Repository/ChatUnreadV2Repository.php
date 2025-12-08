@@ -72,6 +72,7 @@ class ChatUnreadV2Repository extends ServiceEntityRepository implements ChatUnre
             ->innerJoin('u.chatParticipant', 'p')
             ->innerJoin('p.chatRoom', 'r')
             ->where('p.user = :user')
+            ->andWhere('p.deletedAt IS NULL')
             ->groupBy('r.id')
             ->setParameter('user', $user);
 

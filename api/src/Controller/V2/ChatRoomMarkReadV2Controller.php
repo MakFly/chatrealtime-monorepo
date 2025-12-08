@@ -8,6 +8,7 @@ use App\Entity\ChatRoomV2;
 use App\Entity\User;
 use App\Repository\ChatParticipantV2Repository;
 use App\Service\V2\ChatUnreadV2ServiceInterface;
+use App\Service\V2\ChatUnreadMercurePublisherV2;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\AsController;
@@ -17,7 +18,8 @@ class ChatRoomMarkReadV2Controller extends AbstractController
 {
     public function __construct(
         private readonly ChatUnreadV2ServiceInterface $unreadService,
-        private readonly ChatParticipantV2Repository $participantRepository
+        private readonly ChatParticipantV2Repository $participantRepository,
+        private readonly ChatUnreadMercurePublisherV2 $mercurePublisher,
     ) {
     }
 
@@ -31,11 +33,17 @@ class ChatRoomMarkReadV2Controller extends AbstractController
             'user' => $user,
         ]);
 
-        if ($participant) {
-            $this->unreadService->resetUnread($participant);
+        if (!$participant) {
+            return new JsonResponse(
+                ['message' => 'You are not a participant of this room'],
+                403
+            );
         }
 
-        return new JsonResponse(['status' => 'ok']);
+        $this->unreadService->resetUnread($participant);
+        // Notify current user that unread is now 0 for this room
+        $this->mercurePublisher->publishUnreadCountForUser($user, $data);
+
+        return new JsonResponse(['status' => 'ok', 'roomId' => $data->getId()]);
     }
 }
-

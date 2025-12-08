@@ -49,8 +49,8 @@ export function useGlobalChatNotifications(
   // Fetch Mercure token for authenticated user
   const { data: mercureToken } = useMercureTokenV2(enabled && !!user)
 
-  // Build topic for current user
-  const topic = user ? `/marketplace-chat/unread/user/${user.id}` : null
+  // Build topic for current user (matches backend: /chat-v2/unread/user/{id})
+  const topic = user ? `/chat-v2/unread/user/${user.id}` : null
 
   // Extract current room ID from URL (if on chat page)
   const getCurrentRoomId = useCallback((): number | null => {
